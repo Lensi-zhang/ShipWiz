@@ -70,6 +70,14 @@ impl AppError {
         })
     }
 
+    pub fn host_key(error: impl Display) -> Self {
+        Self::from_friendly(FriendlyError {
+            title: "SSH 主机身份校验未通过",
+            reason: error.to_string(),
+            solution: "如果目标舰船确实重装或更换了主机密钥，请删除系统配置目录下 known_hosts.json 中对应记录后重新连接；否则请立即停止连接并排查网络中间人风险。",
+        })
+    }
+
     pub fn credential(error: impl Display) -> Self {
         Self::from_friendly(FriendlyError {
             title: "节点凭据暂时无法使用",

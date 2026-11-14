@@ -1,21 +1,140 @@
 use crate::config::{NodeConnection, ShipNode, SshAuthMethod};
 use crate::credential;
 use crate::error::AppError;
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use bollard::Docker;
 use ssh2::{Channel, Session};
+use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
-use std::path::Path;
-#[cfg(not(target_os = "windows"))]
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
 const HEARTBEAT_INTERVAL_SECONDS: usize = 30;
+
+struct KnownHosts {
+    path: Option<PathBuf>,
+    entries: HashMap<String, String>,
+}
+
+static KNOWN_HOSTS: OnceLock<Mutex<KnownHosts>> = OnceLock::new();
+
+fn known_hosts() -> &'static Mutex<KnownHosts> {
+    KNOWN_HOSTS.get_or_init(|| {
+        Mutex::new(KnownHosts {
+            path: None,
+            entries: HashMap::new(),
+        })
+    })
+}
+
+pub fn init_known_hosts(path: PathBuf) -> Result<(), AppError> {
+    let entries = read_known_hosts(&path)?;
+    let mut store = lock(known_hosts());
+    store.path = Some(path);
+    store.entries = entries;
+    Ok(())
+}
+
+fn read_known_hosts(path: &Path) -> Result<HashMap<String, String>, AppError> {
+    match std::fs::read_to_string(path) {
+        Ok(content) => serde_json::from_str(&content).map_err(|error| {
+            AppError::config(format!(
+                "SSH 主机密钥记录文件格式无效（{}）：{error}",
+                path.display()
+            ))
+        }),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(HashMap::new()),
+        Err(error) => Err(AppError::config(format!(
+            "读取 SSH 主机密钥记录失败（{}）：{error}",
+            path.display()
+        ))),
+    }
+}
+
+fn write_known_hosts(path: &Path, entries: &HashMap<String, String>) -> Result<(), AppError> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| AppError::config(format!("无法创建 SSH 主机密钥记录目录：{error}")))?;
+    }
+    let content = serde_json::to_string_pretty(entries)
+        .map_err(|error| AppError::config(format!("整理 SSH 主机密钥记录失败：{error}")))?;
+    std::fs::write(path, content).map_err(|error| {
+        AppError::config(format!(
+            "无法写入 SSH 主机密钥记录（{}）：{error}",
+            path.display()
+        ))
+    })
+}
+
+fn ssh_port(node: &ShipNode) -> u16 {
+    if node.port == 0 {
+        22
+    } else {
+        node.port
+    }
+}
+
+fn host_key_identity(session: &Session) -> Result<String, AppError> {
+    let (key, key_type) = session
+        .host_key()
+        .ok_or_else(|| AppError::host_key("SSH 服务端没有返回主机公钥，无法确认目标身份。"))?;
+    Ok(format!("{key_type:?}:{}", BASE64.encode(key)))
+}
+
+enum HostKeyState {
+    Matched,
+    Recorded,
+    Changed,
+}
+
+fn remember_host_key(
+    entries: &mut HashMap<String, String>,
+    entry: &str,
+    observed: &str,
+) -> HostKeyState {
+    match entries.get(entry) {
+        Some(known) if known == observed => HostKeyState::Matched,
+        Some(_) => HostKeyState::Changed,
+        None => {
+            entries.insert(entry.to_string(), observed.to_string());
+            HostKeyState::Recorded
+        }
+    }
+}
+
+fn verify_host_key(session: &Session, node: &ShipNode) -> Result<(), AppError> {
+    let observed = host_key_identity(session)?;
+    let entry = format!("{}:{}", node.host.trim().to_lowercase(), ssh_port(node));
+    let mut store = lock(known_hosts());
+    match remember_host_key(&mut store.entries, &entry, &observed) {
+        HostKeyState::Matched => Ok(()),
+        HostKeyState::Changed => {
+            let location = store.path.as_ref().map_or_else(
+                || "known_hosts.json".to_string(),
+                |path| path.display().to_string(),
+            );
+            Err(AppError::host_key(format!(
+                "目标舰船 {entry} 的主机密钥与首次连接记录不一致。记录位置：{location}。"
+            )))
+        }
+        HostKeyState::Recorded => {
+            let path = store.path.clone();
+            let entries = store.entries.clone();
+            drop(store);
+            if let Some(path) = path {
+                write_known_hosts(&path, &entries)?;
+            }
+            Ok(())
+        }
+    }
+}
 
 struct TunnelShared {
     node: ShipNode,
@@ -86,7 +205,7 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 fn connect_session(node: &ShipNode) -> Result<Session, AppError> {
     let host = nonempty(&node.host, "SSH 主机地址不能为空。")?;
-    let port = if node.port == 0 { 22 } else { node.port };
+    let port = ssh_port(node);
     let username = nonempty(
         node.username.as_deref().unwrap_or_default(),
         "SSH 用户名不能为空。",
@@ -122,6 +241,7 @@ fn connect_session(node: &ShipNode) -> Result<Session, AppError> {
     session
         .handshake()
         .map_err(|error| AppError::ssh(format!("SSH 握手失败：{error}")))?;
+    verify_host_key(&session, node)?;
     authenticate(&session, node, username)?;
     if !session.authenticated() {
         return Err(AppError::ssh("SSH 服务未确认认证成功。"));
@@ -511,6 +631,23 @@ fn spawn_accept_loop(listener: LocalListener, shared: Arc<TunnelShared>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn host_key_trust_records_once_and_rejects_changes() {
+        let mut entries = HashMap::new();
+        assert!(matches!(
+            remember_host_key(&mut entries, "ship:22", "ed25519:AAAA"),
+            HostKeyState::Recorded
+        ));
+        assert!(matches!(
+            remember_host_key(&mut entries, "ship:22", "ed25519:AAAA"),
+            HostKeyState::Matched
+        ));
+        assert!(matches!(
+            remember_host_key(&mut entries, "ship:22", "ed25519:BBBB"),
+            HostKeyState::Changed
+        ));
+    }
 
     #[test]
     fn pending_buffer_tracks_partial_writes() {

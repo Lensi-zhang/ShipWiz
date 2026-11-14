@@ -15,6 +15,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            let directory = app
+                .path()
+                .app_config_dir()
+                .map_err(|error| std::io::Error::other(error.to_string()))?;
+            ssh::init_known_hosts(directory.join("known_hosts.json"))
+                .map_err(|error| std::io::Error::other(error.message()))?;
+            Ok(())
+        })
         .manage(terminal::TerminalManager::default())
         .invoke_handler(tauri::generate_handler![
             config::commands::get_fleet_state,
