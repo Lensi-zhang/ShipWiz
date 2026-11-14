@@ -41,7 +41,7 @@ package.json        前端依赖与脚本
 - Rust 1.77.2+（含 MSVC 工具链）
 - Docker Engine / Docker Desktop（本机连接时需要）
 - Windows 构建额外需要 Strawberry Perl 与 NASM：`ssh2` 的 vendored OpenSSL 依赖它们
-- Linux 构建桌面端需要 `libwebkit2gtk-4.1-dev`、`libayatana-appindicator3-dev`、`librsvg2-dev`、`patchelf`、`libssl-dev`；只构建 CLI 则无需这些图形库
+- Linux 构建桌面端需要 `libwebkit2gtk-4.1-dev`、`libayatana-appindicator3-dev`、`librsvg2-dev`、`patchelf`、`libssl-dev`；只构建 CLI 则无需这些图形库，但仍需 `pkg-config`、`libdbus-1-dev`（密钥串后端）与 `libssl-dev`
 
 ## 开发与构建
 
