@@ -1,0 +1,8 @@
+node_modules/
+dist/
+src-frontend/dist/
+target/
+gen/
+.DS_Store
+*.local
+.trae/
