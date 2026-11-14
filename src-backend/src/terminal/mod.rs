@@ -125,7 +125,7 @@ pub async fn terminal_open(
                 return Err(AppError::input("终端命令不能为空。"));
             }
             let cols = valid_size(cols.unwrap_or(80), rows.unwrap_or(24))?;
-            let node = load_state(&app)?
+            let node = load_state()?
                 .nodes
                 .into_iter()
                 .find(|node| node.id == node_id)

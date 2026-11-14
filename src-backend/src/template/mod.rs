@@ -1,7 +1,6 @@
-use crate::config::open_store;
+use crate::config;
 use crate::error::{respond, ApiResponse, AppError};
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,17 +27,16 @@ pub struct ComposeTemplateInput {
 }
 
 #[tauri::command]
-pub async fn list_compose_templates(app: AppHandle) -> ApiResponse<Vec<ComposeTemplate>> {
+pub async fn list_compose_templates() -> ApiResponse<Vec<ComposeTemplate>> {
     respond((|| {
         let mut templates = built_in_templates();
-        templates.extend(load_custom_templates(&app)?);
+        templates.extend(load_custom_templates()?);
         Ok(templates)
     })())
 }
 
 #[tauri::command]
 pub async fn save_compose_template(
-    app: AppHandle,
     input: ComposeTemplateInput,
     id: Option<String>,
 ) -> ApiResponse<Vec<ComposeTemplate>> {
@@ -52,7 +50,7 @@ pub async fn save_compose_template(
         if id.as_deref().is_some_and(|id| id.starts_with("builtin-")) {
             return Err(AppError::input("内置模板不可修改，请另存为本地模板。"));
         }
-        let mut templates = load_custom_templates(&app)?;
+        let mut templates = load_custom_templates()?;
         let template = ComposeTemplate {
             id: id.unwrap_or_else(|| Uuid::new_v4().to_string()),
             title,
@@ -74,7 +72,7 @@ pub async fn save_compose_template(
         } else {
             templates.push(template);
         }
-        write_custom_templates(&app, &templates)?;
+        write_custom_templates(&templates)?;
         let mut all = built_in_templates();
         all.extend(templates);
         Ok(all)
@@ -82,40 +80,30 @@ pub async fn save_compose_template(
 }
 
 #[tauri::command]
-pub async fn remove_compose_template(
-    app: AppHandle,
-    id: String,
-) -> ApiResponse<Vec<ComposeTemplate>> {
+pub async fn remove_compose_template(id: String) -> ApiResponse<Vec<ComposeTemplate>> {
     respond((|| {
         if id.starts_with("builtin-") {
             return Err(AppError::input("内置模板不可移除。"));
         }
-        let mut templates = load_custom_templates(&app)?;
+        let mut templates = load_custom_templates()?;
         let original_len = templates.len();
         templates.retain(|template| template.id != id);
         if templates.len() == original_len {
             return Err(AppError::input("目标本地模板不存在或已被移除。"));
         }
-        write_custom_templates(&app, &templates)?;
+        write_custom_templates(&templates)?;
         let mut all = built_in_templates();
         all.extend(templates);
         Ok(all)
     })())
 }
 
-fn load_custom_templates(app: &AppHandle) -> Result<Vec<ComposeTemplate>, AppError> {
-    let store = open_store(app)?;
-    match store.get("composeTemplates") {
-        Some(value) => serde_json::from_value(value).map_err(|error| AppError::config(error)),
-        None => Ok(Vec::new()),
-    }
+fn load_custom_templates() -> Result<Vec<ComposeTemplate>, AppError> {
+    Ok(config::read_config_key::<Vec<ComposeTemplate>>("composeTemplates")?.unwrap_or_default())
 }
 
-fn write_custom_templates(app: &AppHandle, templates: &[ComposeTemplate]) -> Result<(), AppError> {
-    let store = open_store(app)?;
-    let value = serde_json::to_value(templates).map_err(|error| AppError::config(error))?;
-    store.set("composeTemplates", value);
-    store.save().map_err(|error| AppError::config(error))
+fn write_custom_templates(templates: &[ComposeTemplate]) -> Result<(), AppError> {
+    config::write_config_key("composeTemplates", templates)
 }
 
 fn built_in_templates() -> Vec<ComposeTemplate> {

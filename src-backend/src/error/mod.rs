@@ -1,4 +1,5 @@
 use regex::Regex;
+#[cfg(feature = "desktop")]
 use serde::Serialize;
 use std::fmt::Display;
 
@@ -193,6 +194,7 @@ fn translate_docker_error(raw: &str) -> FriendlyError {
     }
 }
 
+#[cfg(feature = "desktop")]
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiResponse<T> {
@@ -201,6 +203,7 @@ pub struct ApiResponse<T> {
     pub data: Option<T>,
 }
 
+#[cfg(feature = "desktop")]
 impl<T> ApiResponse<T> {
     pub fn success(data: T) -> Self {
         Self {
@@ -219,6 +222,7 @@ impl<T> ApiResponse<T> {
     }
 }
 
+#[cfg(feature = "desktop")]
 pub fn respond<T>(result: Result<T, AppError>) -> ApiResponse<T> {
     match result {
         Ok(data) => ApiResponse::success(data),

@@ -15,12 +15,15 @@ use futures_util::{future::join_all, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
-use tauri::AppHandle;
 use tokio::time::timeout;
 
 use super::{connect, CONNECT_TIMEOUT_SECONDS};
-use crate::config::{load_state, ShipNode};
-use crate::error::{respond, ApiResponse, AppError};
+#[cfg(feature = "desktop")]
+use crate::config::load_state;
+use crate::config::ShipNode;
+use crate::error::AppError;
+#[cfg(feature = "desktop")]
+use crate::error::{respond, ApiResponse};
 
 const STATS_TIMEOUT_SECONDS: u64 = 5;
 
@@ -101,6 +104,7 @@ pub struct ExecResult {
     pub exit_code: Option<i64>,
 }
 
+#[cfg(feature = "desktop")]
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FleetOverview {
@@ -118,8 +122,9 @@ fn default_restart_policy() -> String {
     "no".to_string()
 }
 
-fn node_by_id(app: &AppHandle, node_id: &str) -> Result<ShipNode, AppError> {
-    load_state(app)?
+#[cfg(feature = "desktop")]
+fn node_by_id(node_id: &str) -> Result<ShipNode, AppError> {
+    load_state()?
         .nodes
         .into_iter()
         .find(|node| node.id == node_id)
@@ -232,7 +237,7 @@ fn map_container(summary: ContainerSummary) -> ContainerInfo {
     }
 }
 
-async fn list_for_node(node: &ShipNode) -> Result<Vec<ContainerInfo>, AppError> {
+pub(crate) async fn list_for_node(node: &ShipNode) -> Result<Vec<ContainerInfo>, AppError> {
     let docker = connect(node).await?;
     let summaries = docker
         .list_containers(Some(ListContainersOptions::<String> {
@@ -258,11 +263,12 @@ async fn list_for_node(node: &ShipNode) -> Result<Vec<ContainerInfo>, AppError> 
     Ok(containers)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
-pub async fn list_containers(app: AppHandle, node_id: String) -> ApiResponse<Vec<ContainerInfo>> {
+pub async fn list_containers(node_id: String) -> ApiResponse<Vec<ContainerInfo>> {
     respond(
         async {
-            let node = node_by_id(&app, &node_id)?;
+            let node = node_by_id(&node_id)?;
             list_for_node(&node).await
         }
         .await,
@@ -328,7 +334,10 @@ fn restart_policy(value: &str) -> RestartPolicy {
     }
 }
 
-async fn create_for_node(node: &ShipNode, input: CreateContainerInput) -> Result<String, AppError> {
+pub(crate) async fn create_for_node(
+    node: &ShipNode,
+    input: CreateContainerInput,
+) -> Result<String, AppError> {
     validate_create(&input)?;
     let docker = connect(node).await?;
     let mut exposed_ports = HashMap::new();
@@ -402,22 +411,19 @@ async fn create_for_node(node: &ShipNode, input: CreateContainerInput) -> Result
     Ok(result.id)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
-pub async fn create_container(
-    app: AppHandle,
-    node_id: String,
-    input: CreateContainerInput,
-) -> ApiResponse<String> {
+pub async fn create_container(node_id: String, input: CreateContainerInput) -> ApiResponse<String> {
     respond(
         async {
-            let node = node_by_id(&app, &node_id)?;
+            let node = node_by_id(&node_id)?;
             create_for_node(&node, input).await
         }
         .await,
     )
 }
 
-async fn start_for_node(node: &ShipNode, container_id: &str) -> Result<bool, AppError> {
+pub(crate) async fn start_for_node(node: &ShipNode, container_id: &str) -> Result<bool, AppError> {
     validate_id(container_id)?;
     connect(node)
         .await?
@@ -427,179 +433,217 @@ async fn start_for_node(node: &ShipNode, container_id: &str) -> Result<bool, App
     Ok(true)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
-pub async fn start_container(
-    app: AppHandle,
-    node_id: String,
-    container_id: String,
-) -> ApiResponse<bool> {
+pub async fn start_container(node_id: String, container_id: String) -> ApiResponse<bool> {
     respond(
         async {
-            let node = node_by_id(&app, &node_id)?;
+            let node = node_by_id(&node_id)?;
             start_for_node(&node, &container_id).await
         }
         .await,
     )
 }
 
+pub(crate) async fn stop_for_node(node: &ShipNode, container_id: &str) -> Result<bool, AppError> {
+    validate_id(container_id)?;
+    connect(node)
+        .await?
+        .stop_container(container_id, Some(StopContainerOptions { t: 10 }))
+        .await
+        .map_err(AppError::docker)?;
+    Ok(true)
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
-pub async fn stop_container(
-    app: AppHandle,
-    node_id: String,
-    container_id: String,
-) -> ApiResponse<bool> {
+pub async fn stop_container(node_id: String, container_id: String) -> ApiResponse<bool> {
     respond(
         async {
-            validate_id(&container_id)?;
-            let node = node_by_id(&app, &node_id)?;
-            connect(&node)
-                .await?
-                .stop_container(&container_id, Some(StopContainerOptions { t: 10 }))
-                .await
-                .map_err(AppError::docker)?;
-            Ok(true)
+            let node = node_by_id(&node_id)?;
+            stop_for_node(&node, &container_id).await
         }
         .await,
     )
 }
 
+pub(crate) async fn restart_for_node(
+    node: &ShipNode,
+    container_id: &str,
+) -> Result<bool, AppError> {
+    validate_id(container_id)?;
+    connect(node)
+        .await?
+        .restart_container(container_id, Some(RestartContainerOptions { t: 10 }))
+        .await
+        .map_err(AppError::docker)?;
+    Ok(true)
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
-pub async fn restart_container(
-    app: AppHandle,
-    node_id: String,
-    container_id: String,
-) -> ApiResponse<bool> {
+pub async fn restart_container(node_id: String, container_id: String) -> ApiResponse<bool> {
     respond(
         async {
-            validate_id(&container_id)?;
-            let node = node_by_id(&app, &node_id)?;
-            connect(&node)
-                .await?
-                .restart_container(&container_id, Some(RestartContainerOptions { t: 10 }))
-                .await
-                .map_err(AppError::docker)?;
-            Ok(true)
+            let node = node_by_id(&node_id)?;
+            restart_for_node(&node, &container_id).await
         }
         .await,
     )
 }
 
+pub(crate) async fn remove_for_node(
+    node: &ShipNode,
+    container_id: &str,
+    force: bool,
+) -> Result<bool, AppError> {
+    validate_id(container_id)?;
+    connect(node)
+        .await?
+        .remove_container(
+            container_id,
+            Some(RemoveContainerOptions {
+                force,
+                ..Default::default()
+            }),
+        )
+        .await
+        .map_err(AppError::docker)?;
+    Ok(true)
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
-pub async fn remove_container(
-    app: AppHandle,
-    node_id: String,
-    container_id: String,
-) -> ApiResponse<bool> {
+pub async fn remove_container(node_id: String, container_id: String) -> ApiResponse<bool> {
     respond(
         async {
-            validate_id(&container_id)?;
-            let node = node_by_id(&app, &node_id)?;
-            connect(&node)
-                .await?
-                .remove_container(
-                    &container_id,
-                    Some(RemoveContainerOptions {
-                        force: true,
-                        ..Default::default()
-                    }),
-                )
-                .await
-                .map_err(AppError::docker)?;
-            Ok(true)
+            let node = node_by_id(&node_id)?;
+            remove_for_node(&node, &container_id, true).await
         }
         .await,
     )
 }
 
+pub(crate) async fn stream_logs_for_node(
+    node: &ShipNode,
+    container_id: &str,
+    tail: u32,
+    follow: bool,
+    mut sink: impl FnMut(String),
+) -> Result<(), AppError> {
+    validate_id(container_id)?;
+    let docker = connect(node).await?;
+    let mut stream = docker.logs(
+        container_id,
+        Some(LogsOptions::<String> {
+            stdout: true,
+            stderr: true,
+            timestamps: true,
+            follow,
+            tail: tail.clamp(1, 2000).to_string(),
+            ..Default::default()
+        }),
+    );
+    while let Some(line) = stream.next().await {
+        sink(line.map_err(AppError::docker)?.to_string());
+    }
+    Ok(())
+}
+
+pub(crate) async fn logs_for_node(
+    node: &ShipNode,
+    container_id: &str,
+    tail: u32,
+) -> Result<String, AppError> {
+    let mut output = String::new();
+    stream_logs_for_node(node, container_id, tail, false, |line| {
+        output.push_str(&line);
+    })
+    .await?;
+    Ok(output)
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub async fn get_container_logs(
-    app: AppHandle,
     node_id: String,
     container_id: String,
     tail: Option<u32>,
 ) -> ApiResponse<String> {
     respond(
         async {
-            validate_id(&container_id)?;
-            let node = node_by_id(&app, &node_id)?;
-            let docker = connect(&node).await?;
-            let mut stream = docker.logs(
-                &container_id,
-                Some(LogsOptions::<String> {
-                    stdout: true,
-                    stderr: true,
-                    timestamps: true,
-                    tail: tail.unwrap_or(200).clamp(1, 2000).to_string(),
-                    ..Default::default()
-                }),
-            );
-            let mut output = String::new();
-            while let Some(line) = stream.next().await {
-                output.push_str(&line.map_err(AppError::docker)?.to_string());
-            }
-            Ok(output)
+            let node = node_by_id(&node_id)?;
+            logs_for_node(&node, &container_id, tail.unwrap_or(200)).await
         }
         .await,
     )
 }
 
+pub(crate) async fn exec_for_node(
+    node: &ShipNode,
+    container_id: &str,
+    command: &str,
+) -> Result<ExecResult, AppError> {
+    validate_id(container_id)?;
+    if command.trim().is_empty() {
+        return Err(AppError::input("请输入需要执行的巡检命令。"));
+    }
+    let docker = connect(node).await?;
+    let exec = docker
+        .create_exec(
+            container_id,
+            CreateExecOptions {
+                attach_stdout: Some(true),
+                attach_stderr: Some(true),
+                cmd: Some(vec![
+                    "/bin/sh".to_string(),
+                    "-c".to_string(),
+                    command.trim().to_string(),
+                ]),
+                ..Default::default()
+            },
+        )
+        .await
+        .map_err(AppError::docker)?;
+    let mut output_text = String::new();
+    if let StartExecResults::Attached { mut output, .. } = docker
+        .start_exec(&exec.id, Some(StartExecOptions::default()))
+        .await
+        .map_err(AppError::docker)?
+    {
+        while let Some(line) = output.next().await {
+            output_text.push_str(&line.map_err(AppError::docker)?.to_string());
+        }
+    }
+    let inspection = docker
+        .inspect_exec(&exec.id)
+        .await
+        .map_err(AppError::docker)?;
+    Ok(ExecResult {
+        output: output_text,
+        exit_code: inspection.exit_code,
+    })
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub async fn exec_container(
-    app: AppHandle,
     node_id: String,
     container_id: String,
     command: String,
 ) -> ApiResponse<ExecResult> {
     respond(
         async {
-            validate_id(&container_id)?;
-            if command.trim().is_empty() {
-                return Err(AppError::input("请输入需要执行的巡检命令。"));
-            }
-            let node = node_by_id(&app, &node_id)?;
-            let docker = connect(&node).await?;
-            let exec = docker
-                .create_exec(
-                    &container_id,
-                    CreateExecOptions {
-                        attach_stdout: Some(true),
-                        attach_stderr: Some(true),
-                        cmd: Some(vec![
-                            "/bin/sh".to_string(),
-                            "-c".to_string(),
-                            command.trim().to_string(),
-                        ]),
-                        ..Default::default()
-                    },
-                )
-                .await
-                .map_err(AppError::docker)?;
-            let mut output_text = String::new();
-            if let StartExecResults::Attached { mut output, .. } = docker
-                .start_exec(&exec.id, Some(StartExecOptions::default()))
-                .await
-                .map_err(AppError::docker)?
-            {
-                while let Some(line) = output.next().await {
-                    output_text.push_str(&line.map_err(AppError::docker)?.to_string());
-                }
-            }
-            let inspection = docker
-                .inspect_exec(&exec.id)
-                .await
-                .map_err(AppError::docker)?;
-            Ok(ExecResult {
-                output: output_text,
-                exit_code: inspection.exit_code,
-            })
+            let node = node_by_id(&node_id)?;
+            exec_for_node(&node, &container_id, &command).await
         }
         .await,
     )
 }
 
-async fn overview_for_node(node: ShipNode) -> Result<(usize, usize, usize), AppError> {
+pub(crate) async fn overview_for_node(node: &ShipNode) -> Result<(usize, usize, usize), AppError> {
     timeout(Duration::from_secs(CONNECT_TIMEOUT_SECONDS), async {
-        let docker = connect(&node).await?;
+        let docker = connect(node).await?;
         let containers = docker
             .list_containers(Some(ListContainersOptions::<String> {
                 all: true,
@@ -628,12 +672,13 @@ async fn overview_for_node(node: ShipNode) -> Result<(usize, usize, usize), AppE
     .map_err(|_| AppError::docker("connection timed out"))?
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
-pub async fn get_fleet_overview(app: AppHandle) -> ApiResponse<FleetOverview> {
+pub async fn get_fleet_overview() -> ApiResponse<FleetOverview> {
     respond(
         async {
-            let nodes = load_state(&app)?.nodes;
-            let results = join_all(nodes.into_iter().map(overview_for_node)).await;
+            let nodes = load_state()?.nodes;
+            let results = join_all(nodes.iter().map(overview_for_node)).await;
             let mut overview = FleetOverview::default();
             for result in results {
                 match result {

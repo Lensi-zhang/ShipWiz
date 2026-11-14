@@ -254,15 +254,21 @@ fn authenticate(session: &Session, node: &ShipNode, username: &str) -> Result<()
     let method = node
         .auth_method
         .ok_or_else(|| AppError::validation("SSH 节点缺少认证方式。"))?;
-    let credentials = match node.credential_id.as_deref() {
-        Some(id) => credential::load(id)?,
-        None => Default::default(),
-    };
+    let credentials = node
+        .credential_id
+        .as_deref()
+        .and_then(|id| credential::load(id).ok())
+        .unwrap_or_default();
     match method {
         SshAuthMethod::Password => {
-            let password = credentials.password.ok_or_else(|| {
-                AppError::credential("系统密钥库中没有 SSH 密码，请编辑节点并重新输入。")
-            })?;
+            let password = credentials
+                .password
+                .or_else(|| env_secret("SHIPWIZ_SSH_PASSWORD"))
+                .ok_or_else(|| {
+                    AppError::credential(
+                        "系统密钥库中没有 SSH 密码，请编辑节点并重新输入，或设置 SHIPWIZ_SSH_PASSWORD 环境变量。",
+                    )
+                })?;
             session
                 .userauth_password(username, &password)
                 .map_err(|error| {
@@ -270,10 +276,15 @@ fn authenticate(session: &Session, node: &ShipNode, username: &str) -> Result<()
                 })
         }
         SshAuthMethod::PrivateKey => {
-            let passphrase = credentials.passphrase.as_deref();
-            if let Some(private_key) = credentials.private_key {
+            let passphrase = credentials
+                .passphrase
+                .or_else(|| env_secret("SHIPWIZ_SSH_PASSPHRASE"));
+            let private_key = credentials
+                .private_key
+                .or_else(|| env_secret("SHIPWIZ_SSH_PRIVATE_KEY"));
+            if let Some(private_key) = private_key {
                 session
-                    .userauth_pubkey_memory(username, None, &private_key, passphrase)
+                    .userauth_pubkey_memory(username, None, &private_key, passphrase.as_deref())
                     .map_err(|error| {
                         AppError::ssh(format!("SSH 私钥认证失败，请检查私钥和口令：{error}"))
                     })
@@ -283,13 +294,17 @@ fn authenticate(session: &Session, node: &ShipNode, username: &str) -> Result<()
                     .as_deref()
                     .ok_or_else(|| AppError::validation("SSH 私钥认证缺少私钥路径或私钥内容。"))?;
                 session
-                    .userauth_pubkey_file(username, None, Path::new(path), passphrase)
+                    .userauth_pubkey_file(username, None, Path::new(path), passphrase.as_deref())
                     .map_err(|error| {
                         AppError::ssh(format!("SSH 私钥文件认证失败，请检查路径和口令：{error}"))
                     })
             }
         }
     }
+}
+
+fn env_secret(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|value| !value.is_empty())
 }
 
 fn open_remote_socket(session: &Session, node: &ShipNode) -> Result<Channel, AppError> {

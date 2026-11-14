@@ -1,25 +1,27 @@
+pub mod cli;
 mod compose;
 pub mod config;
-mod credential;
+pub(crate) mod credential;
 mod docker;
 mod error;
 mod ssh;
+#[cfg(feature = "desktop")]
 pub mod template;
+#[cfg(feature = "desktop")]
 mod terminal;
 mod utils;
 
+#[cfg(feature = "desktop")]
 use tauri::{Manager, RunEvent};
 
+#[cfg(feature = "desktop")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app| {
-            let directory = app
-                .path()
-                .app_config_dir()
-                .map_err(|error| std::io::Error::other(error.to_string()))?;
+        .setup(|_app| {
+            let directory = config::config_directory()
+                .map_err(|error| std::io::Error::other(error.message()))?;
             ssh::init_known_hosts(directory.join("known_hosts.json"))
                 .map_err(|error| std::io::Error::other(error.message()))?;
             Ok(())

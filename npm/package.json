@@ -1,0 +1,29 @@
+{
+  "name": "shipwiz-cli",
+  "version": "0.1.0",
+  "description": "ShipWiz 命令行 Docker 舰队管理器（Linux / Windows / macOS）",
+  "license": "MIT",
+  "type": "commonjs",
+  "bin": {
+    "shipwiz-cli": "bin/shipwiz-cli.js"
+  },
+  "files": [
+    "bin/shipwiz-cli.js",
+    "install.js",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lensi-zhang/ShipWiz.git"
+  },
+  "homepage": "https://github.com/Lensi-zhang/ShipWiz",
+  "bugs": {
+    "url": "https://github.com/Lensi-zhang/ShipWiz/issues"
+  }
+}

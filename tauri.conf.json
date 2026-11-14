@@ -3,6 +3,7 @@
   "productName": "ShipWiz",
   "version": "0.1.0",
   "identifier": "com.shipwiz.desktop",
+  "mainBinaryName": "shipwiz",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -28,6 +29,14 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": []
+    "category": "DeveloperTool",
+    "shortDescription": "轻量航海风 Docker 桌面与命令行客户端",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
   }
 }

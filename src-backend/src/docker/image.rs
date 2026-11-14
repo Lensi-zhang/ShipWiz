@@ -6,14 +6,17 @@ use futures_util::StreamExt;
 use serde::Serialize;
 use std::collections::VecDeque;
 use std::path::Path;
-use tauri::AppHandle;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
 
 use super::connect;
-use crate::config::{load_registries, load_state, RegistrySource, ShipNode};
-use crate::error::{respond, ApiResponse, AppError};
+#[cfg(feature = "desktop")]
+use crate::config::load_state;
+use crate::config::{load_registries, RegistrySource, ShipNode};
+use crate::error::AppError;
+#[cfg(feature = "desktop")]
+use crate::error::{respond, ApiResponse};
 
 const MAX_OUTPUT_LINES: usize = 80;
 
@@ -50,8 +53,9 @@ struct RegistryAddress {
     host: String,
 }
 
-fn node_by_id(app: &AppHandle, node_id: &str) -> Result<ShipNode, AppError> {
-    load_state(app)?
+#[cfg(feature = "desktop")]
+fn node_by_id(node_id: &str) -> Result<ShipNode, AppError> {
+    load_state()?
         .nodes
         .into_iter()
         .find(|node| node.id == node_id)
@@ -197,214 +201,250 @@ fn join_status(lines: VecDeque<String>) -> String {
     lines.into_iter().collect::<Vec<_>>().join("\n")
 }
 
+pub(crate) async fn list_for_node(node: &ShipNode) -> Result<Vec<ImageInfo>, AppError> {
+    let images = connect(node)
+        .await?
+        .list_images(Some(ListImagesOptions {
+            all: true,
+            digests: true,
+            ..Default::default()
+        }))
+        .await
+        .map_err(AppError::docker)?;
+    Ok(images
+        .into_iter()
+        .map(|image| {
+            let id = image.id;
+            let short_id = id
+                .strip_prefix("sha256:")
+                .unwrap_or(&id)
+                .chars()
+                .take(12)
+                .collect();
+            ImageInfo {
+                id,
+                short_id,
+                repo_tags: image.repo_tags,
+                repo_digests: image.repo_digests,
+                size: image.size,
+                created: image.created,
+                containers: image.containers,
+            }
+        })
+        .collect())
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
-pub async fn list_images(app: AppHandle, node_id: String) -> ApiResponse<Vec<ImageInfo>> {
+pub async fn list_images(node_id: String) -> ApiResponse<Vec<ImageInfo>> {
     respond(
         async {
-            let node = node_by_id(&app, &node_id)?;
-            let images = connect(&node)
-                .await?
-                .list_images(Some(ListImagesOptions {
-                    all: true,
-                    digests: true,
-                    ..Default::default()
-                }))
-                .await
-                .map_err(AppError::docker)?;
-            Ok(images
-                .into_iter()
-                .map(|image| {
-                    let id = image.id;
-                    let short_id = id
-                        .strip_prefix("sha256:")
-                        .unwrap_or(&id)
-                        .chars()
-                        .take(12)
-                        .collect();
-                    ImageInfo {
-                        id,
-                        short_id,
-                        repo_tags: image.repo_tags,
-                        repo_digests: image.repo_digests,
-                        size: image.size,
-                        created: image.created,
-                        containers: image.containers,
-                    }
-                })
-                .collect())
+            let node = node_by_id(&node_id)?;
+            list_for_node(&node).await
         }
         .await,
     )
 }
 
+pub(crate) async fn search_for_node(
+    node: &ShipNode,
+    term: &str,
+) -> Result<Vec<ImageSearchResult>, AppError> {
+    let term = required(term, "请输入需要检索的图纸名称。")?;
+    let results = connect(node)
+        .await?
+        .search_images(SearchImagesOptions {
+            term: term.to_string(),
+            limit: Some(25),
+            filters: None,
+        })
+        .await
+        .map_err(AppError::docker)?;
+    Ok(results
+        .into_iter()
+        .map(|result| ImageSearchResult {
+            name: result.name.unwrap_or_default(),
+            description: result.description.unwrap_or_default(),
+            star_count: result.star_count.unwrap_or(0),
+            is_official: result.is_official.unwrap_or(false),
+        })
+        .collect())
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
-pub async fn search_images(
-    app: AppHandle,
-    node_id: String,
-    term: String,
-) -> ApiResponse<Vec<ImageSearchResult>> {
+pub async fn search_images(node_id: String, term: String) -> ApiResponse<Vec<ImageSearchResult>> {
     respond(
         async {
-            let term = required(&term, "请输入需要检索的图纸名称。")?;
-            let node = node_by_id(&app, &node_id)?;
-            let results = connect(&node)
-                .await?
-                .search_images(SearchImagesOptions {
-                    term: term.to_string(),
-                    limit: Some(25),
-                    filters: None,
-                })
-                .await
-                .map_err(AppError::docker)?;
-            Ok(results
-                .into_iter()
-                .map(|result| ImageSearchResult {
-                    name: result.name.unwrap_or_default(),
-                    description: result.description.unwrap_or_default(),
-                    star_count: result.star_count.unwrap_or(0),
-                    is_official: result.is_official.unwrap_or(false),
-                })
-                .collect())
+            let node = node_by_id(&node_id)?;
+            search_for_node(&node, &term).await
         }
         .await,
     )
 }
 
+pub(crate) async fn pull_for_node(
+    node: &ShipNode,
+    reference: &str,
+    registry_id: Option<&str>,
+) -> Result<ImageOperationResult, AppError> {
+    let reference = required(reference, "请输入需要拉取的图纸名称与标签。")?;
+    let registries = load_registries()?;
+    let pull_reference = resolve_pull_reference(reference, registry_id, &registries)?;
+    let docker = connect(node).await?;
+    let mut stream = docker.create_image(
+        Some(CreateImageOptions {
+            from_image: Some(pull_reference.clone()),
+            ..Default::default()
+        }),
+        None,
+        None,
+    );
+    let mut statuses = VecDeque::new();
+    while let Some(item) = stream.next().await {
+        let info = item.map_err(AppError::docker)?;
+        if let Some(error) = info.error {
+            return Err(AppError::docker(error));
+        }
+        append_status(&mut statuses, info.status);
+    }
+    Ok(ImageOperationResult {
+        reference: pull_reference,
+        output: join_status(statuses),
+    })
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub async fn pull_image(
-    app: AppHandle,
     node_id: String,
     reference: String,
     registry_id: Option<String>,
 ) -> ApiResponse<ImageOperationResult> {
     respond(
         async {
-            let reference = required(&reference, "请输入需要拉取的图纸名称与标签。")?;
-            let registries = load_registries(&app)?;
-            let pull_reference =
-                resolve_pull_reference(reference, registry_id.as_deref(), &registries)?;
-            let node = node_by_id(&app, &node_id)?;
-            let docker = connect(&node).await?;
-            let mut stream = docker.create_image(
-                Some(CreateImageOptions {
-                    from_image: Some(pull_reference.clone()),
-                    ..Default::default()
-                }),
-                None,
-                None,
-            );
-            let mut statuses = VecDeque::new();
-            while let Some(item) = stream.next().await {
-                let info = item.map_err(AppError::docker)?;
-                if let Some(error) = info.error {
-                    return Err(AppError::docker(error));
-                }
-                append_status(&mut statuses, info.status);
-            }
-            Ok(ImageOperationResult {
-                reference: pull_reference,
-                output: join_status(statuses),
-            })
+            let node = node_by_id(&node_id)?;
+            pull_for_node(&node, &reference, registry_id.as_deref()).await
         }
         .await,
     )
 }
 
+pub(crate) async fn remove_for_node(
+    node: &ShipNode,
+    image_id: &str,
+    force: bool,
+) -> Result<bool, AppError> {
+    let image_id = required(image_id, "缺少图纸标识，请刷新列表后重试。")?;
+    connect(node)
+        .await?
+        .remove_image(
+            image_id,
+            Some(RemoveImageOptions {
+                force,
+                noprune: false,
+            }),
+            None,
+        )
+        .await
+        .map_err(AppError::docker)?;
+    Ok(true)
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub async fn remove_image(
-    app: AppHandle,
     node_id: String,
     image_id: String,
     force: Option<bool>,
 ) -> ApiResponse<bool> {
     respond(
         async {
-            let image_id = required(&image_id, "缺少图纸标识，请刷新列表后重试。")?;
-            let node = node_by_id(&app, &node_id)?;
-            connect(&node)
-                .await?
-                .remove_image(
-                    image_id,
-                    Some(RemoveImageOptions {
-                        force: force.unwrap_or(false),
-                        noprune: false,
-                    }),
-                    None,
-                )
-                .await
-                .map_err(AppError::docker)?;
-            Ok(true)
+            let node = node_by_id(&node_id)?;
+            remove_for_node(&node, &image_id, force.unwrap_or(false)).await
         }
         .await,
     )
 }
 
+pub(crate) async fn export_for_node(
+    node: &ShipNode,
+    reference: &str,
+    destination: &str,
+) -> Result<bool, AppError> {
+    let reference = required(reference, "请选择需要导出的图纸。")?;
+    let destination = required(destination, "请选择图纸导出路径。")?;
+    let docker = connect(node).await?;
+    let mut file = File::create(destination)
+        .await
+        .map_err(|error| AppError::input(format!("无法创建图纸导出文件：{error}")))?;
+    let mut stream = docker.export_image(reference);
+    while let Some(item) = stream.next().await {
+        let chunk = item.map_err(AppError::docker)?;
+        file.write_all(&chunk)
+            .await
+            .map_err(|error| AppError::input(format!("写入图纸导出文件失败：{error}")))?;
+    }
+    file.flush()
+        .await
+        .map_err(|error| AppError::input(format!("完成图纸导出文件写入失败：{error}")))?;
+    Ok(true)
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub async fn export_image(
-    app: AppHandle,
     node_id: String,
     reference: String,
     destination: String,
 ) -> ApiResponse<bool> {
     respond(
         async {
-            let reference = required(&reference, "请选择需要导出的图纸。")?;
-            let destination = required(&destination, "请选择图纸导出路径。")?;
-            let node = node_by_id(&app, &node_id)?;
-            let docker = connect(&node).await?;
-            let mut file = File::create(destination)
-                .await
-                .map_err(|error| AppError::input(format!("无法创建图纸导出文件：{error}")))?;
-            let mut stream = docker.export_image(reference);
-            while let Some(item) = stream.next().await {
-                let chunk = item.map_err(AppError::docker)?;
-                file.write_all(&chunk)
-                    .await
-                    .map_err(|error| AppError::input(format!("写入图纸导出文件失败：{error}")))?;
-            }
-            file.flush()
-                .await
-                .map_err(|error| AppError::input(format!("完成图纸导出文件写入失败：{error}")))?;
-            Ok(true)
+            let node = node_by_id(&node_id)?;
+            export_for_node(&node, &reference, &destination).await
         }
         .await,
     )
 }
 
+pub(crate) async fn import_for_node(
+    node: &ShipNode,
+    source: &str,
+) -> Result<ImageOperationResult, AppError> {
+    let source = required(source, "请选择需要导入的图纸文件。")?;
+    let docker = connect(node).await?;
+    let file = File::open(source)
+        .await
+        .map_err(|error| AppError::input(format!("无法打开图纸导入文件：{error}")))?;
+    let body = bollard::body_try_stream(ReaderStream::new(file));
+    let mut stream = docker.import_image(ImportImageOptions::default(), body, None);
+    let mut statuses = VecDeque::new();
+    while let Some(item) = stream.next().await {
+        let info = item.map_err(AppError::docker)?;
+        if let Some(error) = info.error {
+            return Err(AppError::docker(error));
+        }
+        append_status(&mut statuses, info.status);
+    }
+    let reference = Path::new(source)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or(source)
+        .to_string();
+    Ok(ImageOperationResult {
+        reference,
+        output: join_status(statuses),
+    })
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
-pub async fn import_image(
-    app: AppHandle,
-    node_id: String,
-    source: String,
-) -> ApiResponse<ImageOperationResult> {
+pub async fn import_image(node_id: String, source: String) -> ApiResponse<ImageOperationResult> {
     respond(
         async {
-            let source = required(&source, "请选择需要导入的图纸文件。")?;
-            let node = node_by_id(&app, &node_id)?;
-            let docker = connect(&node).await?;
-            let file = File::open(source)
-                .await
-                .map_err(|error| AppError::input(format!("无法打开图纸导入文件：{error}")))?;
-            let body = bollard::body_try_stream(ReaderStream::new(file));
-            let mut stream = docker.import_image(ImportImageOptions::default(), body, None);
-            let mut statuses = VecDeque::new();
-            while let Some(item) = stream.next().await {
-                let info = item.map_err(AppError::docker)?;
-                if let Some(error) = info.error {
-                    return Err(AppError::docker(error));
-                }
-                append_status(&mut statuses, info.status);
-            }
-            let reference = Path::new(source)
-                .file_name()
-                .and_then(|name| name.to_str())
-                .filter(|name| !name.is_empty())
-                .unwrap_or(source)
-                .to_string();
-            Ok(ImageOperationResult {
-                reference,
-                output: join_status(statuses),
-            })
+            let node = node_by_id(&node_id)?;
+            import_for_node(&node, &source).await
         }
         .await,
     )

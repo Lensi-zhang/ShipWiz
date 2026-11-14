@@ -163,6 +163,7 @@ pub fn disconnect_node(node_id: &str) {
     }
 }
 
+#[cfg(feature = "desktop")]
 pub fn shutdown_connections() {
     let entries = {
         let mut tunnels = lock_tunnels();
