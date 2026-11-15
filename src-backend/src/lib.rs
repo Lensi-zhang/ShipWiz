@@ -9,6 +9,7 @@ pub mod template;
 #[cfg(feature = "desktop")]
 mod terminal;
 pub mod tui;
+mod update;
 mod utils;
 
 #[cfg(feature = "desktop")]
@@ -68,6 +69,7 @@ pub fn run() {
             template::list_compose_templates,
             template::save_compose_template,
             template::remove_compose_template,
+            update::check_update,
         ])
         .build(tauri::generate_context!())
         .expect("ShipWiz 启动失败")

@@ -9,6 +9,7 @@ use crate::config::{
 use crate::credential;
 use crate::docker::{self, container, image};
 use crate::error::AppError;
+use crate::update::{self, UpdateInfo};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use crossterm::execute;
 use crossterm::terminal::{
@@ -18,6 +19,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::widgets::TableState;
 use ratatui::Terminal;
 use std::io;
+use std::sync::mpsc;
 use std::time::Duration;
 use tokio::runtime::Handle;
 use uuid::Uuid;
@@ -160,6 +162,7 @@ enum ShipCommand {
     Remove,
     Refresh,
     Help,
+    Update,
     Quit,
 }
 
@@ -182,6 +185,7 @@ fn parse_command(input: &str) -> Result<Option<ShipCommand>, String> {
         "rm" => ShipCommand::Remove,
         "refresh" => ShipCommand::Refresh,
         "help" => ShipCommand::Help,
+        "update" => ShipCommand::Update,
         "quit" => ShipCommand::Quit,
         _ => return Err(format!("未知航令“{name}”，输入 help 查看可用指令")),
     };
@@ -209,11 +213,17 @@ pub struct App {
     status: String,
     command_input: String,
     command_focused: bool,
+    update_sender: mpsc::Sender<Result<Option<UpdateInfo>, String>>,
+    update_receiver: mpsc::Receiver<Result<Option<UpdateInfo>, String>>,
+    update_busy: bool,
+    update_manual: bool,
+    update_info: Option<UpdateInfo>,
     should_quit: bool,
 }
 
 impl App {
     fn new(handle: Handle) -> Self {
+        let (update_sender, update_receiver) = mpsc::channel();
         let mut app = Self {
             handle,
             tab: Tab::Containers,
@@ -235,10 +245,88 @@ impl App {
             status: "正在接入舰队…".to_string(),
             command_input: String::new(),
             command_focused: false,
+            update_sender,
+            update_receiver,
+            update_busy: false,
+            update_manual: false,
+            update_info: None,
             should_quit: false,
         };
+        app.start_update_check(false);
         app.refresh_all();
         app
+    }
+
+    /// 后台检查 GitHub Release，不阻塞主界面；手动检查会给出错误提示
+    fn start_update_check(&mut self, manual: bool) {
+        if self.update_busy {
+            if manual {
+                self.status = "正在检查更新…".to_string();
+            }
+            return;
+        }
+        self.update_busy = true;
+        self.update_manual = manual;
+        if manual {
+            self.status = "正在检查更新…".to_string();
+        }
+        let sender = self.update_sender.clone();
+        self.handle.spawn(async move {
+            let result = update::check_latest()
+                .await
+                .map_err(|error| error.message().replace('\n', "  "));
+            let _ = sender.send(result);
+        });
+    }
+
+    fn poll_update_result(&mut self) {
+        while let Ok(result) = self.update_receiver.try_recv() {
+            self.update_busy = false;
+            match result {
+                Ok(Some(info)) => {
+                    self.status = format!("发现新版本 v{} · 按 U 查看更新说明", info.latest);
+                    self.update_info = Some(info);
+                }
+                Ok(None) => {
+                    self.update_info = None;
+                    self.status = format!("已是最新版本 v{}", update::current_version());
+                }
+                Err(message) => {
+                    // 启动时的自动检查失败保持静默，避免每次启动都报错
+                    if self.update_manual {
+                        self.status = format!("检查更新失败：{message}");
+                    }
+                }
+            }
+        }
+    }
+
+    fn open_update_viewer(&mut self) {
+        let Some(info) = self.update_info.clone() else {
+            self.start_update_check(true);
+            return;
+        };
+        let mut lines = vec![
+            format!("当前版本：v{}", info.current),
+            format!("最新版本：v{}", info.latest),
+        ];
+        if !info.published_at.is_empty() {
+            lines.push(format!("发布时间：{}", info.published_at));
+        }
+        lines.push(String::new());
+        lines.push("更新说明".to_string());
+        if info.notes.is_empty() {
+            lines.push("（该版本没有填写更新说明）".to_string());
+        } else {
+            lines.extend(info.notes.lines().take(60).map(str::to_string));
+        }
+        lines.push(String::new());
+        lines.push(format!("下载地址：{}", info.url));
+        self.overlay = Some(Overlay::Viewer {
+            title: format!("发现新版本 · v{}", info.latest),
+            lines,
+            scroll: 0,
+        });
     }
 
     fn refresh_all(&mut self) {
@@ -377,6 +465,10 @@ impl App {
                 self.tab = Tab::Help;
                 return;
             }
+            KeyCode::Char('U') => {
+                self.open_update_viewer();
+                return;
+            }
             KeyCode::F(5) => {
                 self.refresh_all();
                 self.status = "已刷新".to_string();
@@ -483,6 +575,7 @@ impl App {
                 self.status = "已刷新".to_string();
             }
             ShipCommand::Help => self.tab = Tab::Help,
+            ShipCommand::Update => self.start_update_check(true),
             ShipCommand::Quit => self.should_quit = true,
         }
     }
@@ -1813,6 +1906,7 @@ fn event_loop(
     app: &mut App,
 ) -> Result<(), String> {
     loop {
+        app.poll_update_result();
         terminal
             .draw(|frame| ui::draw(frame, app))
             .map_err(|error| error.to_string())?;
@@ -1858,6 +1952,7 @@ mod tests {
             ("rm", ShipCommand::Remove),
             ("refresh", ShipCommand::Refresh),
             ("help", ShipCommand::Help),
+            ("update", ShipCommand::Update),
             ("quit", ShipCommand::Quit),
             ("  START  ", ShipCommand::Start),
         ];

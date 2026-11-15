@@ -801,11 +801,12 @@ fn draw_help(frame: &mut Frame, area: Rect) {
         let lines = vec![
             help_title("全域航行"),
             help_entry("1–6", "切换区域 · Tab 循环 · F5 刷新 · q 退出"),
+            help_entry("U", "检查更新 · 查看新版本说明"),
             Line::from(""),
             help_title("固定航令"),
             help_entry(":", "聚焦 · Enter 执行 · Esc 取消"),
             help_entry("指令", "1–6 · start/stop/restart/logs/rm"),
-            help_entry("", "refresh · help · quit"),
+            help_entry("", "refresh · update · help · quit"),
             Line::from(""),
             help_title("甲板与图纸"),
             help_entry("s/x/r", "启航 / 停泊 / 重启集装箱"),
@@ -837,6 +838,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
         Line::from(""),
         help_entry("1–6 / Tab", "切换航海区域"),
         help_entry("F5 / ?", "刷新态势 / 打开手册"),
+        help_entry("U", "检查更新 · 查看新版本说明"),
         Line::from(""),
         help_title("集装箱 / CARGO DECK"),
         help_entry("s / x / r", "启航 / 停泊 / 重启"),
@@ -867,7 +869,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
         Line::from(""),
         help_title("固定航令 / COMMANDS"),
         help_entry(":", "聚焦 · Enter 执行 · Esc 取消"),
-        help_entry("1–6", "切换区域 · refresh / help / quit"),
+        help_entry("1–6", "切换区域 · refresh / update / help / quit"),
         help_entry("容器", "start / stop / restart / logs / rm"),
         Line::from(""),
         Line::from(Span::styled(
@@ -1001,7 +1003,7 @@ fn draw_hints(frame: &mut Frame, area: Rect, app: &App) {
             ("d", "移除"),
         ],
         Tab::Registries => &[("a", "新增"), ("u", "设默认"), ("d", "移除")],
-        Tab::Help => &[("?", "舰桥手册"), ("q", "退出")],
+        Tab::Help => &[("U", "检查更新"), ("?", "舰桥手册"), ("q", "退出")],
     };
     let mut spans = vec![Span::styled(" 航令 ", Style::default().fg(ACCENT))];
     let visible = if area.width < 95 { 4 } else { hints.len() };
@@ -1034,7 +1036,7 @@ fn draw_hints(frame: &mut Frame, area: Rect, app: &App) {
         Line::from(vec![
             Span::styled(" 全域 ", Style::default().fg(ACCENT)),
             Span::styled(
-                "1–6 区域   Tab 切换   F5 刷新   : 航令   ? 舰桥手册   q 退出",
+                "1–6 区域   Tab 切换   F5 刷新   : 航令   U 更新   ? 舰桥手册   q 退出",
                 Style::default().fg(MUTED),
             ),
         ])

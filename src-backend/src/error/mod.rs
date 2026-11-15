@@ -95,6 +95,14 @@ impl AppError {
         })
     }
 
+    pub fn update(error: impl Display) -> Self {
+        Self::from_friendly(FriendlyError {
+            title: "版本检查未能完成",
+            reason: error.to_string(),
+            solution: "请检查网络连接后重试；离线状态下可继续使用当前版本。",
+        })
+    }
+
     fn from_friendly(friendly: FriendlyError) -> Self {
         Self { friendly }
     }

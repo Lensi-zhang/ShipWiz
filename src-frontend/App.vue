@@ -25,8 +25,9 @@ import {
 import { dict } from "./dict";
 import { useAppearanceStore } from "./store/appearance";
 import { useFleetStore } from "./store/fleet";
-import { syncMessageTheme } from "./utils/message";
+import { syncMessageTheme, alertWarning } from "./utils/message";
 import OnboardingTour from "./components/OnboardingTour.vue";
+import { checkUpdate } from "./api/update";
 
 const route = useRoute();
 const fleet = useFleetStore();
@@ -66,6 +67,12 @@ watch(() => appearance.theme, syncMessageTheme, { immediate: true });
 onMounted(async () => {
   await fleet.load();
   showOnboarding.value = localStorage.getItem("shipwiz.onboarded") !== "true";
+  // 启动后静默检查更新：网络异常不打扰用户，发现新版本再提示
+  checkUpdate()
+    .then((info) => {
+      if (info) alertWarning(`发现新版本 v${info.latest}，可在「设置 · 关于」查看`, { closable: true, duration: 7000 });
+    })
+    .catch(() => {});
 });
 </script>
 

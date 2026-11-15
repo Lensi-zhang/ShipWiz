@@ -2,12 +2,14 @@
 import { computed, onMounted, ref } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
 import { NButton, NIcon, NInputNumber, NSelect, NSwitch, NTabPane, NTabs, NTag } from "naive-ui";
-import { connectSuccess } from "../../utils/message";
+import { connectSuccess, alertError, alertWarning, message } from "../../utils/message";
 import { Anchor, Check, Info, Moon, RefreshCw, ScrollText, Settings2, Sun } from "lucide-vue-next";
 import RegistryManager from "../../components/RegistryManager.vue";
 import { useAppearanceStore } from "../../store/appearance";
 import { useFleetStore } from "../../store/fleet";
 import { useImageStore } from "../../store/image";
+import { checkUpdate } from "../../api/update";
+import type { UpdateInfo } from "../../types";
 
 const fleet = useFleetStore();
 const appearance = useAppearanceStore();
@@ -16,12 +18,42 @@ const activeTab = ref("engine");
 const version = ref("—");
 const testing = ref(false);
 const engineMessage = ref("");
+const checking = ref(false);
+const updateInfo = ref<UpdateInfo | null>(null);
+const updateMessage = ref("点击“检查更新”获取 GitHub 上的最新发布版本。");
 const nodeOptions = computed(() => fleet.state.nodes.map((node) => ({ label: `${node.name}（${node.type === "local" ? "本机" : "远程"}）`, value: node.id })));
 
 onMounted(async () => {
   await Promise.all([fleet.load(), images.loadRegistries()]);
   try { version.value = await getVersion(); } catch { version.value = "0.1.0"; }
 });
+async function runUpdateCheck() {
+  if (checking.value) return;
+  checking.value = true;
+  updateMessage.value = "正在连接 GitHub 检查最新版本…";
+  try {
+    const info = await checkUpdate();
+    updateInfo.value = info;
+    updateMessage.value = info
+      ? `发现新版本 v${info.latest}，当前 v${info.current}。`
+      : `已是最新版本（v${version.value}）。`;
+    if (info) alertWarning(`发现新版本 v${info.latest}，可在下方复制下载地址`);
+  } catch (error) {
+    updateMessage.value = error instanceof Error ? error.message : "检查未完成，请检查网络后重试。";
+    alertError(updateMessage.value);
+  } finally {
+    checking.value = false;
+  }
+}
+async function copyUpdateUrl() {
+  if (!updateInfo.value) return;
+  try {
+    await navigator.clipboard.writeText(updateInfo.value.url);
+    message.success("下载地址已复制");
+  } catch {
+    alertError("复制失败，请手动选中下载地址");
+  }
+}
 async function testEngine() {
   if (!fleet.state.currentNodeId) return;
   testing.value = true;
@@ -79,6 +111,17 @@ async function switchNode(id: string) {
             <div class="about-brand"><Anchor :size="32" /><div><h2>ShipWiz</h2><span>舰桥控制台</span></div></div>
             <p>为船长提供清晰、集中的舰船与集装箱管理工作台。通过本机、TLS 或 SSH 安全通道操控动力引擎。</p>
             <dl><div><dt>应用版本</dt><dd>{{ version }}</dd></div><div><dt>当前版本阶段</dt><dd>桌面稳定版</dd></div><div><dt>配置保存位置</dt><dd>本机用户目录</dd></div><div><dt>许可</dt><dd>项目内部使用</dd></div></dl>
+            <div class="setting-row update-row">
+              <div>
+                <strong>版本更新</strong>
+                <p class="update-message">{{ updateMessage }}</p>
+                <p v-if="updateInfo" class="update-url">{{ updateInfo.url }}</p>
+              </div>
+              <div class="update-actions">
+                <n-button :loading="checking" @click="runUpdateCheck"><template #icon><n-icon :component="RefreshCw" /></template>检查更新</n-button>
+                <n-button v-if="updateInfo" quaternary @click="copyUpdateUrl">复制下载地址</n-button>
+              </div>
+            </div>
           </section>
         </n-tab-pane>
       </n-tabs>
@@ -96,6 +139,7 @@ async function switchNode(id: string) {
 .theme-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }.theme-options > button { position: relative; padding: 12px; color: var(--sw-text); border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface-soft); text-align: left; cursor: pointer; }.theme-options > button.active { border-color: var(--sw-primary); box-shadow: inset 0 0 0 1px var(--sw-primary); }.theme-options > button > span:nth-child(2) { display: grid; grid-template-columns: 20px 1fr; align-items: center; gap: 3px; margin-top: 12px; font-size: 12px; }.theme-options small { grid-column: 2; margin-top: 3px; color: var(--sw-muted); font-size: 9px; }.theme-preview { display: grid; grid-template: 20px 1fr / 28px 1fr; height: 94px; overflow: hidden; border: 1px solid var(--sw-border); border-radius: 6px; }.theme-preview i { grid-column: 1 / -1; }.theme-preview b { grid-row: 2; }.theme-preview em { grid-row: 2; margin: 9px; border-radius: 3px; }.theme-preview.deep { background: #0f172a; }.theme-preview.deep i { background: #1e293b; }.theme-preview.deep b { background: #1e293b; }.theme-preview.deep em { background: #243248; }.theme-preview.shallow { background: #f7fafc; }.theme-preview.shallow i { background: #fff; }.theme-preview.shallow b { background: #edf2f7; }.theme-preview.shallow em { background: #fff; }.selected-dot { position: absolute; right: 10px; bottom: 15px; width: 7px; height: 7px; border-radius: 50%; background: var(--sw-primary); }
 .privacy-note { display: flex; gap: 9px; margin-top: 20px; padding: 12px; color: var(--sw-primary); border-radius: 8px; background: var(--sw-primary-soft); }.privacy-note p { margin: 0; color: var(--sw-text-secondary); font-size: 11px; }
 .about-brand { display: flex; align-items: center; gap: 14px; color: var(--sw-primary); }.about-brand h2 { margin: 0; color: var(--sw-text); font-family: "Bahnschrift", sans-serif; font-size: 26px; }.about-brand span { color: var(--sw-muted); font-size: 11px; }.about-section > p { max-width: 600px; margin: 24px 0; color: var(--sw-text-secondary); font-size: 12px; line-height: 1.8; }.about-section dl { max-width: 560px; margin: 0; }.about-section dl > div { display: flex; justify-content: space-between; padding: 13px 0; border-top: 1px solid var(--sw-border); font-size: 11px; }.about-section dt { color: var(--sw-muted); }.about-section dd { margin: 0; color: var(--sw-text); }
+.update-row { align-items: flex-start; }.update-row > div:first-child { min-width: 0; }.update-message { white-space: pre-line; }.update-url { word-break: break-all; font-family: "Cascadia Mono", monospace; }.update-actions { display: flex; flex-shrink: 0; align-items: center; gap: 10px; }
 @media (max-width: 900px) {
   .settings-layout { grid-template-columns: 140px minmax(0, 1fr); }
   .theme-options { grid-template-columns: 1fr; }

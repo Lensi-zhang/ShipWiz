@@ -182,3 +182,11 @@ export interface ApiResponse<T> {
   msg: string;
   data: T | null;
 }
+
+export interface UpdateInfo {
+  current: string;
+  latest: string;
+  url: string;
+  notes: string;
+  publishedAt: string;
+}
