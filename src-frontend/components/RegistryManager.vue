@@ -13,7 +13,7 @@ import {
   NSpin,
   NTag,
 } from "naive-ui";
-import { message } from "../utils/message";
+import { alertWarning } from "../utils/message";
 import { Anchor, Check, Pencil, Plus, Trash2 } from "lucide-vue-next";
 import { dict } from "../dict";
 import { useImageStore } from "../store/image";
@@ -39,7 +39,7 @@ function openEdit(registry: RegistrySource) {
 }
 async function save() {
   if (!form.name.trim() || !form.url.trim()) {
-    message.warning(dict.image.registry.required);
+    alertWarning(dict.image.registry.required);
     return;
   }
   saving.value = true;

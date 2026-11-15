@@ -179,11 +179,11 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--sw-primary); ou
 .nautical-message-container .n-message::before { content: ""; flex: 0 0 3px; align-self: stretch; margin-right: 4px; border-radius: 3px; background: var(--sw-primary); }
 .nautical-message-container .n-message--success-type::before { background: var(--sw-success); }
 .nautical-message-container .n-message--warning-type::before { background: var(--sw-warning); }
-.nautical-message-container .n-message--error-type::before { background: var(--sw-error); }
+.nautical-message-container .n-message--error-type::before { background: var(--sw-danger); }
 .nautical-message-container .n-message__content { flex: 1 1 auto; min-width: 0; line-height: 1.6; overflow-wrap: anywhere; white-space: normal; }
 .nautical-message-container .n-message__icon--success-type > * { color: var(--sw-success); }
 .nautical-message-container .n-message__icon--warning-type > * { color: var(--sw-warning); }
-.nautical-message-container .n-message__icon--error-type > * { color: var(--sw-error); }
+.nautical-message-container .n-message__icon--error-type > * { color: var(--sw-danger); }
 .nautical-message-container .n-message__close { color: var(--sw-muted); }
 .nautical-message-container .n-message__icon:has(.nautical-badge) { flex: 0 0 64px; width: 64px; height: 36px; margin: 0 12px 0 0; }
 .nautical-badge { position: absolute; inset: 0; display: block; overflow: hidden; }
@@ -299,6 +299,33 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--sw-primary); ou
   75% { transform: translate(8px, 1px) rotate(-1deg); }
   100% { opacity: 1; transform: translate(11px, 0) rotate(0); }
 }
+.nautical-alert { color: var(--sw-danger); }
+.nautical-alert__icon { position: absolute; z-index: 2; top: 6px; left: 20px; animation: nautical-alert-knock 1400ms ease-in-out infinite; }
+.nautical-alert__halo { position: absolute; z-index: 1; top: 1px; left: 15px; width: 34px; height: 34px; border: 1px solid currentColor; border-radius: 50%; opacity: 0; animation: nautical-alert-pulse 1600ms ease-out infinite; }
+.nautical-alert__halo--two { animation-delay: 800ms; }
+.nautical-warn { color: var(--sw-warning); }
+.nautical-warn__icon { position: absolute; z-index: 2; top: 5px; left: 20px; animation: nautical-warn-bob 1800ms ease-in-out infinite; }
+.nautical-warn__ring { position: absolute; z-index: 1; top: 2px; left: 17px; width: 30px; height: 30px; border: 1px dashed currentColor; border-radius: 50%; opacity: .35; animation: nautical-warn-ring 3200ms linear infinite; }
+.nautical-warn__sea { position: absolute; z-index: 3; right: 4px; bottom: 3px; left: 4px; height: 5px; border-top: 1px solid currentColor; border-radius: 50%; opacity: .5; animation: nautical-sea 1800ms ease-in-out infinite; }
+@keyframes nautical-alert-pulse {
+  0% { opacity: .7; transform: scale(.55); }
+  100% { opacity: 0; transform: scale(1.4); }
+}
+@keyframes nautical-alert-knock {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-7deg); }
+  40% { transform: rotate(6deg); }
+  60% { transform: rotate(-4deg); }
+  80% { transform: rotate(3deg); }
+}
+@keyframes nautical-warn-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-2px) rotate(2deg); }
+}
+@keyframes nautical-warn-ring {
+  from { transform: rotate(0); }
+  to { transform: rotate(-360deg); }
+}
 .table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
 .n-table th, .n-table td { vertical-align: middle; }
 .n-table th { white-space: nowrap; }
@@ -398,7 +425,12 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--sw-primary); ou
   .nautical-steer__ring,
   .nautical-restart__ship,
   .nautical-restart__ring,
-  .nautical-restart__sea { animation: none !important; }
+  .nautical-restart__sea,
+  .nautical-alert__icon,
+  .nautical-alert__halo,
+  .nautical-warn__icon,
+  .nautical-warn__ring,
+  .nautical-warn__sea { animation: none !important; }
   .nautical-launch__ship { opacity: 1; transform: translateX(12px); }
   .nautical-anchor__icon { opacity: 1; transform: none; }
   .nautical-connect__ship { opacity: 1; transform: none; }
@@ -407,6 +439,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--sw-primary); ou
   .nautical-depart__ship { opacity: 1; transform: none; }
   .nautical-steer__wheel { opacity: 1; transform: none; }
   .nautical-restart__ship { opacity: 1; transform: none; }
+  .nautical-alert__icon, .nautical-warn__icon { opacity: 1; transform: none; }
+  .nautical-alert__halo { display: none; }
   .nautical-launch__wake,
   .nautical-anchor__ripple,
   .nautical-depart__wake { display: none; }

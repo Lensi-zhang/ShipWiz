@@ -5,7 +5,7 @@ import {
   type ConfigProviderProps,
   type MessageOptions,
 } from "naive-ui";
-import { Anchor, Package, Ship, ShipWheel } from "lucide-vue-next";
+import { Anchor, Package, Ship, ShipWheel, Siren, TriangleAlert } from "lucide-vue-next";
 
 const messageTheme = ref<ConfigProviderProps["theme"]>(null);
 const configProviderProps = computed<ConfigProviderProps>(() => ({ theme: messageTheme.value }));
@@ -78,6 +78,22 @@ function renderRestartIcon() {
     h("span", { class: "nautical-restart__ring" }),
     h(Ship, { class: "nautical-restart__ship", size: 26, strokeWidth: 1.8 }),
     h("span", { class: "nautical-restart__sea" }),
+  ]);
+}
+
+function renderAlertIcon() {
+  return h("span", { class: "nautical-badge nautical-alert", "aria-hidden": "true" }, [
+    h("span", { class: "nautical-alert__halo nautical-alert__halo--one" }),
+    h("span", { class: "nautical-alert__halo nautical-alert__halo--two" }),
+    h(Siren, { class: "nautical-alert__icon", size: 24, strokeWidth: 1.9 }),
+  ]);
+}
+
+function renderWarnIcon() {
+  return h("span", { class: "nautical-badge nautical-warn", "aria-hidden": "true" }, [
+    h("span", { class: "nautical-warn__ring" }),
+    h(TriangleAlert, { class: "nautical-warn__icon", size: 23, strokeWidth: 1.9 }),
+    h("span", { class: "nautical-warn__sea" }),
   ]);
 }
 
@@ -155,5 +171,27 @@ export function restartSuccess(
     duration: 4000,
     ...options,
     icon: renderRestartIcon,
+  });
+}
+
+export function alertError(
+  content: string,
+  options: Omit<MessageOptions, "type" | "render" | "icon"> = {},
+) {
+  return message.error(content, {
+    duration: 5600,
+    ...options,
+    icon: renderAlertIcon,
+  });
+}
+
+export function alertWarning(
+  content: string,
+  options: Omit<MessageOptions, "type" | "render" | "icon"> = {},
+) {
+  return message.warning(content, {
+    duration: 4400,
+    ...options,
+    icon: renderWarnIcon,
   });
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { NButton, NForm, NFormItem, NInput, NModal, NSelect } from "naive-ui";
-import { message } from "../utils/message";
+import { alertWarning } from "../utils/message";
 import { dict } from "../dict";
 import { useImageStore } from "../store/image";
 
@@ -36,7 +36,7 @@ watch(
 
 async function submit() {
   if (!reference.value.trim()) {
-    message.warning(dict.image.pullModal.required);
+    alertWarning(dict.image.pullModal.required);
     return;
   }
   submitting.value = true;

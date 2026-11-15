@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { message } from "../utils/message";
+import { alertError } from "../utils/message";
 import { dict } from "../dict";
 import type { ApiResponse } from "../types";
 
@@ -16,7 +16,7 @@ export async function command<T>(name: string, args?: Record<string, unknown>): 
     return response.data;
   } catch (error) {
     const text = error instanceof Error ? error.message : dict.errors.unknown;
-    message.error(text, { duration: 6000, closable: true });
+    alertError(text, { duration: 6000, closable: true });
     throw error;
   }
 }

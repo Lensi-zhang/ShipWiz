@@ -15,7 +15,7 @@ import {
   NTag,
   NTooltip,
 } from "naive-ui";
-import { hoistSuccess, message, steerSuccess } from "../../utils/message";
+import { alertError, hoistSuccess, steerSuccess } from "../../utils/message";
 import {
   BookOpen,
   CheckCircle2,
@@ -178,7 +178,7 @@ function openTemplateModal() {
 }
 async function submitTemplate() {
   if (!templateForm.value.title.trim()) {
-    message.error(dict.compose.templateModal.required);
+    alertError(dict.compose.templateModal.required);
     return;
   }
   const saved = await compose.saveTemplate({
