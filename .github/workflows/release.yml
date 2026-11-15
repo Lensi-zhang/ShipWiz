@@ -26,11 +26,11 @@ jobs:
             target: x86_64-pc-windows-msvc
             binary: shipwiz-cli.exe
             asset: shipwiz-cli-windows-x64.exe
-          - os: macos-13
+          - os: macos-15
             target: aarch64-apple-darwin
             binary: shipwiz-cli
             asset: shipwiz-cli-darwin-arm64
-          - os: macos-13
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             binary: shipwiz-cli
             asset: shipwiz-cli-darwin-x64

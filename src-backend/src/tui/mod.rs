@@ -1,4 +1,4 @@
-﻿mod ui;
+mod ui;
 
 use crate::compose::{self, ComposeDeployment, ComposeProject};
 use crate::config::{
