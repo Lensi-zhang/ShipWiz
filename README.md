@@ -10,6 +10,7 @@
 - **编队（Compose）**：YAML 编辑与校验、up/down、日志、模板
 - **监控**：容器与引擎资源总览
 - **补给港**：镜像仓库（Registry）管理与默认仓库设置
+- **终端界面**：k9s / lazydocker 风格全屏 TUI，六个工作区与舰船破浪启动动画
 - **界面**：深海/浅海主题、200px/56px 折叠侧栏、加载/空态/错误态三态反馈、航海主题操作通知动画
 
 ## 技术栈
@@ -28,6 +29,7 @@
 src-frontend/       Vue 3 前端（视图、组件、store、API 封装）
 src-backend/        Rust 后端（Tauri 命令、Docker、SSH、终端、配置）
 src-backend/src/cli CLI 入口（与桌面端共用配置和 Docker/SSH 逻辑）
+examples/           启动动画独立预览（splash_demo）
 npm/                shipwiz-cli 的 npm 安装包（从 GitHub Release 下载二进制）
 capabilities/       Tauri 权限配置
 tauri.conf.json     应用与窗口配置
@@ -90,6 +92,18 @@ shipwiz-cli
 `shipwiz-cli` 是一个 k9s / lazydocker 风格的交互式 TUI，与桌面端共用 `~/.shipwiz/config.json`、`known_hosts.json` 与系统密钥串，可在服务器上无界面运行。
 
 启动后默认进入集装箱页，顶部标签用 `1`–`6` 或 `Tab` 切换，`F5` 全局刷新，`?` 查看完整按键手册，`q` 退出。
+
+进入主界面前会先播放约 4 秒的舰船破浪动画，独占终端画布，播完自动收尾，无需按键：
+
+![启动动画](screenshots/cli-splash.png)
+
+动画也可脱离主程序单独预览：
+
+```bash
+cargo run --example splash_demo                  # 完整播放
+cargo run --example splash_demo -- --hold 1200   # 定格在第 1.2 秒
+cargo run --example splash_demo -- --dump        # 打印关键帧纯文本
+```
 
 | 标签 | 常用按键 |
 | --- | --- |

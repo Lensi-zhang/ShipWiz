@@ -1,3 +1,4 @@
+pub mod splash;
 mod ui;
 
 use crate::compose::{self, ComposeDeployment, ComposeProject};
@@ -1789,6 +1790,9 @@ fn run_loop(handle: Handle) -> Result<(), String> {
     let mut terminal =
         Terminal::new(backend).map_err(|error| format!("无法初始化终端：{error}"))?;
     terminal.clear().ok();
+
+    // 启动动画：舰船破浪入场，播完自动交还画布
+    splash::play(&mut terminal).ok();
 
     let mut app = App::new(handle);
     let result = event_loop(&mut terminal, &mut app);
