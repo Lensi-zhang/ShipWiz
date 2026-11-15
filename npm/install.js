@@ -8,6 +8,8 @@ const path = require("node:path");
 const VERSION = require("./package.json").version;
 const REPO = "Lensi-zhang/ShipWiz";
 const MAX_REDIRECTS = 5;
+const MAX_ATTEMPTS = 6;
+const IDLE_TIMEOUT = 120_000;
 
 function resolveAsset() {
   const platform = process.platform;
@@ -27,48 +29,74 @@ function resolveAsset() {
   return null;
 }
 
-function download(url, destination, redirects = 0) {
+function fetchTo(url, destination, redirects = 0) {
   return new Promise((resolve, reject) => {
-    const request = https.get(
-      url,
-      { headers: { "User-Agent": "shipwiz-cli-npm" } },
-      (response) => {
-        const status = response.statusCode || 0;
-        if (status >= 300 && status < 400 && response.headers.location) {
-          response.resume();
-          if (redirects >= MAX_REDIRECTS) {
-            reject(new Error("重定向次数过多"));
-            return;
-          }
-          const next = new URL(response.headers.location, url).toString();
-          resolve(download(next, destination, redirects + 1));
+    const temp = `${destination}.download`;
+    const downloaded = fs.existsSync(temp) ? fs.statSync(temp).size : 0;
+    const headers = { "User-Agent": "shipwiz-cli-npm" };
+    if (downloaded > 0) {
+      headers.Range = `bytes=${downloaded}-`;
+    }
+    const request = https.get(url, { headers }, (response) => {
+      const status = response.statusCode || 0;
+      if (status >= 300 && status < 400 && response.headers.location) {
+        response.resume();
+        if (redirects >= MAX_REDIRECTS) {
+          reject(new Error("重定向次数过多"));
           return;
         }
-        if (status !== 200) {
-          response.resume();
-          reject(new Error(`下载失败，HTTP ${status}`));
-          return;
-        }
-        const temp = `${destination}.download`;
-        const file = fs.createWriteStream(temp);
-        response.pipe(file);
-        file.on("finish", () => {
-          file.close(() => {
-            fs.renameSync(temp, destination);
-            resolve();
-          });
-        });
-        file.on("error", (error) => {
-          fs.rmSync(temp, { force: true });
-          reject(error);
-        });
+        const next = new URL(response.headers.location, url).toString();
+        resolve(fetchTo(next, destination, redirects + 1));
+        return;
       }
-    );
+      if (status !== 200 && status !== 206) {
+        response.resume();
+        reject(new Error(`下载失败，HTTP ${status}`));
+        return;
+      }
+      const append = status === 206 && downloaded > 0;
+      const file = fs.createWriteStream(temp, { flags: append ? "a" : "w" });
+      response.on("error", (error) => {
+        file.destroy();
+        reject(error);
+      });
+      file.on("error", reject);
+      file.on("finish", () => file.close(() => resolve()));
+      response.pipe(file);
+    });
     request.on("error", reject);
-    request.setTimeout(60_000, () => {
+    request.setTimeout(IDLE_TIMEOUT, () => {
       request.destroy(new Error("下载超时"));
     });
   });
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function download(url, destination) {
+  const temp = `${destination}.download`;
+  let lastError = new Error("下载失败");
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await fetchTo(url, destination);
+      const size = fs.existsSync(temp) ? fs.statSync(temp).size : 0;
+      if (size === 0) {
+        throw new Error("下载内容为空");
+      }
+      fs.renameSync(temp, destination);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < MAX_ATTEMPTS) {
+        console.error(`第 ${attempt} 次下载未完成（${error.message}），正在续传…`);
+        await delay(attempt * 2_000);
+      }
+    }
+  }
+  fs.rmSync(temp, { force: true });
+  throw lastError;
 }
 
 async function main() {
