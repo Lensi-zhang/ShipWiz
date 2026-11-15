@@ -21,7 +21,7 @@ use std::time::Duration;
 use tokio::runtime::Handle;
 use uuid::Uuid;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tab {
     Containers,
     Images,
@@ -149,6 +149,47 @@ enum Overlay {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShipCommand {
+    SwitchTab(Tab),
+    Start,
+    Stop,
+    Restart,
+    Logs,
+    Remove,
+    Refresh,
+    Help,
+    Quit,
+}
+
+fn parse_command(input: &str) -> Result<Option<ShipCommand>, String> {
+    let mut parts = input.split_whitespace();
+    let Some(name) = parts.next() else {
+        return Ok(None);
+    };
+    let command = match name.to_ascii_lowercase().as_str() {
+        "1" => ShipCommand::SwitchTab(Tab::Containers),
+        "2" => ShipCommand::SwitchTab(Tab::Images),
+        "3" => ShipCommand::SwitchTab(Tab::Compose),
+        "4" => ShipCommand::SwitchTab(Tab::Nodes),
+        "5" => ShipCommand::SwitchTab(Tab::Registries),
+        "6" => ShipCommand::SwitchTab(Tab::Help),
+        "start" => ShipCommand::Start,
+        "stop" => ShipCommand::Stop,
+        "restart" => ShipCommand::Restart,
+        "logs" => ShipCommand::Logs,
+        "rm" => ShipCommand::Remove,
+        "refresh" => ShipCommand::Refresh,
+        "help" => ShipCommand::Help,
+        "quit" => ShipCommand::Quit,
+        _ => return Err(format!("未知航令“{name}”，输入 help 查看可用指令")),
+    };
+    if parts.next().is_some() {
+        return Err(format!("航令 {name} 不接受参数"));
+    }
+    Ok(Some(command))
+}
+
 pub struct App {
     handle: Handle,
     tab: Tab,
@@ -165,6 +206,8 @@ pub struct App {
     registry_state: TableState,
     overlay: Option<Overlay>,
     status: String,
+    command_input: String,
+    command_focused: bool,
     should_quit: bool,
 }
 
@@ -189,6 +232,8 @@ impl App {
             registry_state: TableState::default(),
             overlay: None,
             status: "正在接入舰队…".to_string(),
+            command_input: String::new(),
+            command_focused: false,
             should_quit: false,
         };
         app.refresh_all();
@@ -298,7 +343,31 @@ impl App {
             return;
         }
 
+        if self.command_focused {
+            match key.code {
+                KeyCode::Esc => {
+                    self.command_input.clear();
+                    self.command_focused = false;
+                }
+                KeyCode::Enter => {
+                    let input = std::mem::take(&mut self.command_input);
+                    self.command_focused = false;
+                    self.execute_command(&input);
+                }
+                KeyCode::Backspace => {
+                    self.command_input.pop();
+                }
+                KeyCode::Char(character) => self.command_input.push(character),
+                _ => {}
+            }
+            return;
+        }
+
         match key.code {
+            KeyCode::Char(':') => {
+                self.command_focused = true;
+                return;
+            }
             KeyCode::Char('q') => {
                 self.should_quit = true;
                 return;
@@ -354,6 +423,66 @@ impl App {
             Tab::Nodes => self.node_keys(key.code),
             Tab::Registries => self.registry_keys(key.code),
             Tab::Help => {}
+        }
+    }
+
+    fn execute_command(&mut self, input: &str) {
+        let command = match parse_command(input) {
+            Ok(Some(command)) => command,
+            Ok(None) => return,
+            Err(error) => {
+                self.status = error;
+                return;
+            }
+        };
+
+        match command {
+            ShipCommand::SwitchTab(tab) => self.tab = tab,
+            ShipCommand::Start => {
+                if let Some((id, name)) = self.selected_container() {
+                    self.start_container(id, name);
+                } else {
+                    self.status = "请先在集装箱页选择目标".to_string();
+                }
+            }
+            ShipCommand::Stop => {
+                if let Some((id, name)) = self.selected_container() {
+                    self.stop_container(id, name);
+                } else {
+                    self.status = "请先在集装箱页选择目标".to_string();
+                }
+            }
+            ShipCommand::Restart => {
+                if let Some((id, name)) = self.selected_container() {
+                    self.restart_container(id, name);
+                } else {
+                    self.status = "请先在集装箱页选择目标".to_string();
+                }
+            }
+            ShipCommand::Logs => {
+                if let Some((id, name)) = self.selected_container() {
+                    self.show_logs(id, name);
+                } else {
+                    self.status = "请先在集装箱页选择目标".to_string();
+                }
+            }
+            ShipCommand::Remove => {
+                if let Some((id, name)) = self.selected_container() {
+                    self.overlay = Some(Overlay::Confirm {
+                        title: "撤收集装箱".to_string(),
+                        message: format!("确认强制移除集装箱 {name}？"),
+                        action: Action::ContainerRemove { id, name },
+                    });
+                } else {
+                    self.status = "请先在集装箱页选择目标".to_string();
+                }
+            }
+            ShipCommand::Refresh => {
+                self.refresh_all();
+                self.status = "已刷新".to_string();
+            }
+            ShipCommand::Help => self.tab = Tab::Help,
+            ShipCommand::Quit => self.should_quit = true,
         }
     }
 
@@ -1692,6 +1821,60 @@ fn event_loop(
         }
         if app.should_quit {
             return Ok(());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_command, ShipCommand, Tab};
+
+    #[test]
+    fn parses_tab_commands() {
+        let cases = [
+            ("1", Tab::Containers),
+            ("2", Tab::Images),
+            ("3", Tab::Compose),
+            ("4", Tab::Nodes),
+            ("5", Tab::Registries),
+            ("6", Tab::Help),
+        ];
+        for (input, tab) in cases {
+            assert_eq!(parse_command(input), Ok(Some(ShipCommand::SwitchTab(tab))));
+        }
+    }
+
+    #[test]
+    fn parses_action_commands_and_trims_input() {
+        let cases = [
+            ("start", ShipCommand::Start),
+            ("stop", ShipCommand::Stop),
+            ("restart", ShipCommand::Restart),
+            ("logs", ShipCommand::Logs),
+            ("rm", ShipCommand::Remove),
+            ("refresh", ShipCommand::Refresh),
+            ("help", ShipCommand::Help),
+            ("quit", ShipCommand::Quit),
+            ("  START  ", ShipCommand::Start),
+        ];
+        for (input, command) in cases {
+            assert_eq!(parse_command(input), Ok(Some(command)));
+        }
+    }
+
+    #[test]
+    fn accepts_empty_command_without_action() {
+        assert_eq!(parse_command(""), Ok(None));
+        assert_eq!(parse_command(" \t  "), Ok(None));
+    }
+
+    #[test]
+    fn rejects_arguments_and_unknown_commands() {
+        for input in ["start now", "1 2", "quit force"] {
+            assert!(parse_command(input).unwrap_err().contains("不接受参数"));
+        }
+        for input in ["docker ps", "sh", "unknown"] {
+            assert!(parse_command(input).unwrap_err().contains("未知航令"));
         }
     }
 }

@@ -26,7 +26,10 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     frame.render_widget(Block::default().style(Style::default().bg(BG)), area);
 
     if area.width < 60 || area.height < 16 {
-        draw_compact(frame, area);
+        draw_compact(frame, area, app);
+        if let Some(overlay) = app.overlay.as_mut() {
+            draw_overlay(frame, area, overlay);
+        }
         return;
     }
 
@@ -37,6 +40,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Min(8),
+            Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(2),
         ])
@@ -54,19 +58,21 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Tab::Help => draw_help(frame, chunks[3]),
     }
     draw_status(frame, chunks[4], app);
-    draw_hints(frame, chunks[5], app);
+    draw_command(frame, chunks[5], app);
+    draw_hints(frame, chunks[6], app);
 
     if let Some(overlay) = app.overlay.as_mut() {
         draw_overlay(frame, area, overlay);
     }
 }
 
-fn draw_compact(frame: &mut Frame, area: Rect) {
+fn draw_compact(frame: &mut Frame, area: Rect, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(2),
             Constraint::Min(3),
+            Constraint::Length(1),
             Constraint::Length(1),
         ])
         .split(area);
@@ -93,9 +99,10 @@ fn draw_compact(frame: &mut Frame, area: Rect) {
         .style(Style::default().fg(MUTED).bg(BG)),
         chunks[1],
     );
+    draw_command(frame, chunks[2], app);
     frame.render_widget(
         Paragraph::new(" q 退出").style(Style::default().fg(MUTED).bg(BG)),
-        chunks[2],
+        chunks[3],
     );
 }
 
@@ -795,6 +802,11 @@ fn draw_help(frame: &mut Frame, area: Rect) {
             help_title("全域航行"),
             help_entry("1–6", "切换区域 · Tab 循环 · F5 刷新 · q 退出"),
             Line::from(""),
+            help_title("固定航令"),
+            help_entry(":", "聚焦 · Enter 执行 · Esc 取消"),
+            help_entry("指令", "1–6 · start/stop/restart/logs/rm"),
+            help_entry("", "refresh · help · quit"),
+            Line::from(""),
             help_title("甲板与图纸"),
             help_entry("s/x/r", "启航 / 停泊 / 重启集装箱"),
             help_entry("c/l/e", "新建 / 日志 / 执行命令"),
@@ -853,6 +865,11 @@ fn draw_help(frame: &mut Frame, area: Rect) {
         help_entry("Enter / Esc", "提交 / 取消"),
         help_entry("y / n", "确认 / 取消危险操作"),
         Line::from(""),
+        help_title("固定航令 / COMMANDS"),
+        help_entry(":", "聚焦 · Enter 执行 · Esc 取消"),
+        help_entry("1–6", "切换区域 · refresh / help / quit"),
+        help_entry("容器", "start / stop / restart / logs / rm"),
+        Line::from(""),
         Line::from(Span::styled(
             " ≋ 航令明确，舰队即刻响应。",
             Style::default().fg(MUTED),
@@ -892,6 +909,45 @@ fn draw_status(frame: &mut Frame, area: Rect, app: &App) {
             Span::styled(text, Style::default().fg(color)),
         ]))
         .style(Style::default().bg(BG)),
+        area,
+    );
+}
+
+fn draw_command(frame: &mut Frame, area: Rect, app: &App) {
+    let accent = if app.command_focused { GOLD } else { ACCENT };
+    let mut spans = vec![
+        Span::styled(
+            " 航令 ",
+            Style::default()
+                .fg(accent)
+                .bg(PANEL_ALT)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("› ", Style::default().fg(accent).bg(PANEL_ALT)),
+    ];
+    if app.command_focused {
+        spans.extend([
+            Span::styled(
+                app.command_input.clone(),
+                Style::default().fg(TEXT).bg(PANEL_ALT),
+            ),
+            Span::styled("█", Style::default().fg(GOLD).bg(PANEL_ALT)),
+            Span::styled(
+                "  Enter 执行 · Esc 取消",
+                Style::default().fg(MUTED).bg(PANEL_ALT),
+            ),
+        ]);
+    } else {
+        spans.extend([
+            Span::styled(":", Style::default().fg(ACCENT).bg(PANEL_ALT)),
+            Span::styled(
+                " 输入航令 · help 查看指令",
+                Style::default().fg(MUTED).bg(PANEL_ALT),
+            ),
+        ]);
+    }
+    frame.render_widget(
+        Paragraph::new(Line::from(spans)).style(Style::default().bg(PANEL_ALT)),
         area,
     );
 }
@@ -967,6 +1023,8 @@ fn draw_hints(frame: &mut Frame, area: Rect, app: &App) {
             Span::styled("区域  ", Style::default().fg(MUTED)),
             Span::styled("F5 ", Style::default().fg(ACCENT)),
             Span::styled("刷新  ", Style::default().fg(MUTED)),
+            Span::styled(": ", Style::default().fg(ACCENT)),
+            Span::styled("航令  ", Style::default().fg(MUTED)),
             Span::styled("? ", Style::default().fg(ACCENT)),
             Span::styled("手册  ", Style::default().fg(MUTED)),
             Span::styled("q ", Style::default().fg(ACCENT)),
@@ -976,7 +1034,7 @@ fn draw_hints(frame: &mut Frame, area: Rect, app: &App) {
         Line::from(vec![
             Span::styled(" 全域 ", Style::default().fg(ACCENT)),
             Span::styled(
-                "1–6 区域   Tab 切换   F5 刷新   ? 舰桥手册   q 退出",
+                "1–6 区域   Tab 切换   F5 刷新   : 航令   ? 舰桥手册   q 退出",
                 Style::default().fg(MUTED),
             ),
         ])
