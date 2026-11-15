@@ -190,15 +190,184 @@ async fn run_compose_command(
     action_args: &[&str],
 ) -> Result<String, AppError> {
     let lease = connect(node).await?;
-    let mut command = Command::new("docker");
+    let docker_host = match node.connection {
+        NodeConnection::Ssh => Some(
+            lease
+                .local_docker_host()
+                .ok_or_else(|| AppError::ssh("SSH 隧道缺少本机 Docker 转发地址。"))?
+                .to_string(),
+        ),
+        _ => None,
+    };
+    let cert_path = if matches!(node.connection, NodeConnection::Tls) {
+        if !node.tls {
+            return Err(AppError::validation(
+                "远程舰船必须使用 TLS，禁止未加密的 TCP 连接。",
+            ));
+        }
+        Some(
+            node.cert_path
+                .as_deref()
+                .filter(|path| !path.trim().is_empty())
+                .ok_or_else(|| AppError::validation("远程舰船缺少 TLS 证书目录。"))?
+                .to_string(),
+        )
+    } else {
+        None
+    };
+    let mut compose_missing = false;
+    for cli in docker_clis() {
+        let mut command = build_compose_command(
+            &cli,
+            node,
+            docker_host.as_deref(),
+            cert_path.as_deref(),
+            project,
+            path,
+            action_args,
+        );
+        let output = match timeout(
+            Duration::from_secs(COMPOSE_TIMEOUT_SECONDS),
+            command.output(),
+        )
+        .await
+        {
+            Ok(Ok(output)) => output,
+            Ok(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Ok(Err(error)) => return Err(AppError::docker(error)),
+            Err(_) => return Err(AppError::docker("docker compose command timed out")),
+        };
+        let mut text = String::from_utf8_lossy(&output.stdout).to_string();
+        text.push_str(&String::from_utf8_lossy(&output.stderr));
+        if !output.status.success() {
+            if is_compose_unavailable(&text) {
+                compose_missing = true;
+                continue;
+            }
+            return Err(AppError::docker(if text.trim().is_empty() {
+                format!("docker compose exited with status {}", output.status)
+            } else {
+                text
+            }));
+        }
+        return Ok(if text.trim().is_empty() {
+            "编队指令执行完成。".to_string()
+        } else {
+            text
+        });
+    }
+    Err(AppError::compose(if compose_missing {
+        "已找到 Docker CLI，但缺少 compose 子命令，请安装 Compose 插件或 docker-compose。"
+    } else {
+        "未检测到 Docker Compose 命令，请安装带 Compose 插件的 Docker Desktop 或 Docker Engine（也可通过环境变量 SHIPWIZ_DOCKER_PATH 指定 docker 可执行文件路径）。"
+    }))
+}
+
+struct DockerCli {
+    program: std::ffi::OsString,
+    legacy_compose: bool,
+}
+
+fn docker_clis() -> Vec<DockerCli> {
+    let mut clis = Vec::new();
+    if let Some(path) = std::env::var_os("SHIPWIZ_DOCKER_PATH") {
+        clis.push(DockerCli {
+            program: path,
+            legacy_compose: false,
+        });
+    }
+    clis.push(DockerCli {
+        program: std::ffi::OsString::from("docker"),
+        legacy_compose: false,
+    });
+
+    #[cfg(windows)]
+    {
+        let mut dirs: Vec<PathBuf> = Vec::new();
+        for root in ["ProgramFiles", "ProgramW6432", "LOCALAPPDATA"] {
+            if let Some(base) = std::env::var_os(root) {
+                dirs.push(
+                    PathBuf::from(base)
+                        .join("Docker")
+                        .join("Docker")
+                        .join("resources")
+                        .join("bin"),
+                );
+            }
+        }
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            dirs.push(
+                PathBuf::from(&local)
+                    .join("Programs")
+                    .join("Rancher Desktop")
+                    .join("resources")
+                    .join("resources")
+                    .join("win32")
+                    .join("bin"),
+            );
+            dirs.push(PathBuf::from(local).join("Programs").join("Podman"));
+        }
+        if let Some(program_files) = std::env::var_os("ProgramFiles") {
+            dirs.push(PathBuf::from(program_files).join("RedHat").join("Podman"));
+        }
+        for dir in dirs {
+            push_cli(&mut clis, dir.join("docker.exe"), false);
+            push_cli(&mut clis, dir.join("docker-compose.exe"), true);
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        for dir in ["/usr/local/bin", "/usr/bin", "/snap/bin", "/opt/homebrew/bin"] {
+            push_cli(&mut clis, PathBuf::from(dir).join("docker"), false);
+            push_cli(&mut clis, PathBuf::from(dir).join("docker-compose"), true);
+        }
+    }
+    clis
+}
+
+fn push_cli(clis: &mut Vec<DockerCli>, path: PathBuf, legacy_compose: bool) {
+    if path.is_file() {
+        clis.push(DockerCli {
+            program: path.into_os_string(),
+            legacy_compose,
+        });
+    }
+}
+
+fn is_compose_unavailable(output: &str) -> bool {
+    let text = output.to_lowercase();
+    text.contains("is not a docker command") || text.contains("unknown command")
+}
+
+fn build_compose_command(
+    cli: &DockerCli,
+    node: &ShipNode,
+    docker_host: Option<&str>,
+    cert_path: Option<&str>,
+    project: &str,
+    path: &PathBuf,
+    action_args: &[&str],
+) -> Command {
+    let mut command = Command::new(&cli.program);
+    if cli.legacy_compose {
+        command
+            .arg("--no-ansi")
+            .arg("--project-name")
+            .arg(project)
+            .arg("--file")
+            .arg(path);
+    } else {
+        command
+            .arg("compose")
+            .arg("--ansi")
+            .arg("never")
+            .arg("--project-name")
+            .arg(project)
+            .arg("--file")
+            .arg(path);
+    }
     command
-        .arg("compose")
-        .arg("--ansi")
-        .arg("never")
-        .arg("--project-name")
-        .arg(project)
-        .arg("--file")
-        .arg(path)
         .args(action_args)
         .env("NO_COLOR", "1")
         .stdout(Stdio::piped())
@@ -212,60 +381,24 @@ async fn run_compose_command(
             command.env_remove("DOCKER_CONTEXT");
         }
         NodeConnection::Tls => {
-            if !node.tls {
-                return Err(AppError::validation(
-                    "远程舰船必须使用 TLS，禁止未加密的 TCP 连接。",
-                ));
-            }
-            let cert_path = node
-                .cert_path
-                .as_deref()
-                .filter(|path| !path.trim().is_empty())
-                .ok_or_else(|| AppError::validation("远程舰船缺少 TLS 证书目录。"))?;
             command
-                .env("DOCKER_HOST", format!("tcp://{}:{}", node.host, node.port))
+                .env(
+                    "DOCKER_HOST",
+                    format!("tcp://{}:{}", node.host, node.port),
+                )
                 .env("DOCKER_TLS_VERIFY", "1")
-                .env("DOCKER_CERT_PATH", cert_path)
+                .env("DOCKER_CERT_PATH", cert_path.unwrap_or_default())
                 .env_remove("DOCKER_CONTEXT");
         }
         NodeConnection::Ssh => {
-            let docker_host = lease
-                .local_docker_host()
-                .ok_or_else(|| AppError::ssh("SSH 隧道缺少本机 Docker 转发地址。"))?;
             command
-                .env("DOCKER_HOST", docker_host)
+                .env("DOCKER_HOST", docker_host.unwrap_or_default())
                 .env_remove("DOCKER_TLS_VERIFY")
                 .env_remove("DOCKER_CERT_PATH")
                 .env_remove("DOCKER_CONTEXT");
         }
     }
-    let output = timeout(
-        Duration::from_secs(COMPOSE_TIMEOUT_SECONDS),
-        command.output(),
-    )
-    .await
-    .map_err(|_| AppError::docker("docker compose command timed out"))?
-    .map_err(|error| {
-        if error.kind() == std::io::ErrorKind::NotFound {
-            AppError::compose("未检测到 Docker Compose 命令，请安装带 Compose 插件的 Docker Desktop 或 Docker Engine。")
-        } else {
-            AppError::docker(error)
-        }
-    })?;
-    let mut text = String::from_utf8_lossy(&output.stdout).to_string();
-    text.push_str(&String::from_utf8_lossy(&output.stderr));
-    if !output.status.success() {
-        return Err(AppError::docker(if text.trim().is_empty() {
-            format!("docker compose exited with status {}", output.status)
-        } else {
-            text
-        }));
-    }
-    Ok(if text.trim().is_empty() {
-        "编队指令执行完成。".to_string()
-    } else {
-        text
-    })
+    command
 }
 
 pub(crate) async fn list_for_node(node: &ShipNode) -> Result<Vec<ComposeDeployment>, AppError> {
