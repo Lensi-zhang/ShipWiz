@@ -86,9 +86,9 @@ cargo build --release --no-default-features --bin shipwiz-cli
 桌面端在 Linux 上提供 `.deb` 与 `.AppImage`，由 GitHub Actions 在打 tag 时自动构建：
 
 ```bash
-sudo dpkg -i shipwiz_0.2.4_amd64.deb   # Debian / Ubuntu
-chmod +x ShipWiz_0.2.4_amd64.AppImage   # 其他发行版
-./ShipWiz_0.2.4_amd64.AppImage
+sudo dpkg -i shipwiz_0.2.5_amd64.deb   # Debian / Ubuntu
+chmod +x ShipWiz_0.2.5_amd64.AppImage   # 其他发行版
+./ShipWiz_0.2.5_amd64.AppImage
 ```
 
 CLI 可直接下载独立二进制，或用 npm 安装，启动后直接进入全屏终端界面：
@@ -151,7 +151,7 @@ export SHIPWIZ_SSH_PASSPHRASE='...'        # 私钥口令（可选）
 发布前统一提升并校验六处版本号（`Cargo.toml`、`Cargo.lock`、`package.json`、`package-lock.json`、`npm/package.json`、`tauri.conf.json`）：
 
 ```bash
-npm run bump -- 0.2.4
+npm run bump -- 0.2.5
 npm run check:version
 ```
 
