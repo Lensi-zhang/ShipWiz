@@ -4,7 +4,6 @@ pub(crate) mod credential;
 mod docker;
 mod error;
 mod ssh;
-#[cfg(feature = "desktop")]
 pub mod template;
 #[cfg(feature = "desktop")]
 mod terminal;
@@ -17,9 +16,11 @@ use tauri::{Manager, RunEvent};
 
 #[cfg(feature = "desktop")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    tauri::Builder::default()
+pub fn run() -> Result<(), tauri::Error> {
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|_app| {
             let directory = config::config_directory()
                 .map_err(|error| std::io::Error::other(error.message()))?;
@@ -70,13 +71,16 @@ pub fn run() {
             template::save_compose_template,
             template::remove_compose_template,
             update::check_update,
+            update::clear_skipped_update,
+            update::get_skipped_update,
+            update::skip_update,
         ])
-        .build(tauri::generate_context!())
-        .expect("ShipWiz 启动失败")
-        .run(|app_handle, event| {
-            if let RunEvent::ExitRequested { .. } = event {
-                app_handle.state::<terminal::TerminalManager>().close_all();
-                docker::shutdown_connections();
-            }
-        });
+        .build(tauri::generate_context!())?;
+    app.run(|app_handle, event| {
+        if let RunEvent::ExitRequested { .. } = event {
+            app_handle.state::<terminal::TerminalManager>().close_all();
+            docker::shutdown_connections();
+        }
+    });
+    Ok(())
 }

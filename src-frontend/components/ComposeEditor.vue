@@ -119,9 +119,16 @@ onMounted(() => {
     renderLineHighlight: "all",
     scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
   });
-  editor.onDidChangeModelContent(() => emit("update:modelValue", model?.getValue() ?? ""));
+  editor.onDidChangeModelContent(() =>
+    emit("update:modelValue", model?.getValue() ?? ""),
+  );
   markerListener = monaco.editor.onDidChangeMarkers((resources) => {
-    if (model && resources.some((resource) => resource.toString() === model?.uri.toString())) {
+    if (
+      model &&
+      resources.some(
+        (resource) => resource.toString() === model?.uri.toString(),
+      )
+    ) {
       updateMarkerCount();
     }
   });
@@ -147,5 +154,11 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.compose-editor { width: 100%; height: 100%; min-height: 420px; color: var(--sw-terminal-text); background: var(--sw-terminal-bg); }
+.compose-editor {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  color: var(--sw-terminal-text);
+  background: var(--sw-terminal-bg);
+}
 </style>

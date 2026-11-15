@@ -1,10 +1,15 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
-import { anchorSuccess, departSuccess, hoistSuccess, launchSuccess, restartSuccess } from "../utils/message";
+import {
+  anchorSuccess,
+  departSuccess,
+  hoistSuccess,
+  launchSuccess,
+  restartSuccess,
+} from "../utils/message";
 import { containerApi } from "../api/container";
 import { dict } from "../dict";
 import type { ContainerInfo, CreateContainerInput } from "../types";
-
 
 export type ContainerAction = "start" | "stop" | "restart" | "remove";
 
@@ -47,7 +52,11 @@ export const useContainerStore = defineStore("container", () => {
     }
   }
 
-  async function act(action: ContainerAction, nodeId: string, containerId: string) {
+  async function act(
+    action: ContainerAction,
+    nodeId: string,
+    containerId: string,
+  ) {
     actionKey.value = `${action}:${containerId}`;
     try {
       await containerApi[action](nodeId, containerId);

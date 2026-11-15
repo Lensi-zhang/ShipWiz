@@ -6,7 +6,9 @@ use ratatui::widgets::{
 };
 use ratatui::Frame;
 
-use super::{address, format_ports, format_timestamp, human_size, Action, App, Overlay, Tab};
+use super::app::{format_pull_layer, App, PullOperation};
+use super::input::{Action, Overlay};
+use super::{address, format_ports, format_timestamp, human_size, Tab};
 use crate::config::NodeStatus;
 
 const BG: Color = Color::Rgb(7, 21, 33);
@@ -461,6 +463,18 @@ fn draw_containers(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn draw_images(frame: &mut Frame, area: Rect, app: &mut App) {
+    let area = if let Some(operation) = app.pull_operation.as_ref() {
+        let maximum = area.height.saturating_sub(8).max(5);
+        let height = (operation.layers.len() as u16 + 4).clamp(5, maximum);
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(height), Constraint::Min(3)])
+            .split(area);
+        draw_pull_progress(frame, chunks[0], operation);
+        chunks[1]
+    } else {
+        area
+    };
     let block = panel(
         format!("图纸 · {} 卷", app.images.len()),
         "CHART VAULT",
@@ -524,6 +538,34 @@ fn draw_images(frame: &mut Frame, area: Rect, app: &mut App) {
         .block(block)
         .column_spacing(1);
     frame.render_stateful_widget(table, area, &mut app.image_state);
+}
+
+fn draw_pull_progress(frame: &mut Frame, area: Rect, operation: &PullOperation) {
+    let block = panel(
+        format!("采购 {}", operation.reference),
+        "DOCKER PULL PROGRESS",
+        "⇣",
+    );
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    let mut lines = vec![Line::from(Span::styled(
+        "正在后台接收 Docker 分层进度…",
+        Style::default().fg(GOLD),
+    ))];
+    lines.extend(
+        operation
+            .layers
+            .iter()
+            .map(|layer| Line::from(format_pull_layer(layer))),
+    );
+    let scroll = lines.len().saturating_sub(inner.height as usize) as u16;
+    frame.render_widget(
+        Paragraph::new(lines)
+            .style(Style::default().fg(TEXT).bg(PANEL))
+            .scroll((scroll, 0))
+            .wrap(Wrap { trim: false }),
+        inner,
+    );
 }
 
 fn draw_compose(frame: &mut Frame, area: Rect, app: &mut App) {
@@ -801,7 +843,8 @@ fn draw_help(frame: &mut Frame, area: Rect) {
         let lines = vec![
             help_title("全域航行"),
             help_entry("1–6", "切换区域 · Tab 循环 · F5 刷新 · q 退出"),
-            help_entry("U", "检查更新 · 查看新版本说明"),
+            help_entry("U", "强制检查更新（绕过缓存与跳过）"),
+            help_entry("S / C", "更新弹层：跳过当前版本 / 恢复全部提醒"),
             Line::from(""),
             help_title("固定航令"),
             help_entry(":", "聚焦 · Enter 执行 · Esc 取消"),
@@ -814,7 +857,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
             help_entry("p/s", "采购 / 检索图纸"),
             Line::from(""),
             help_title("编队与舰队"),
-            help_entry("u/D", "启动 / 停止编队"),
+            help_entry("u/D/T", "启动 / 停止编队 / 从模板创建"),
             help_entry("Enter/t", "切换旗舰 / 测试连接"),
             help_entry("a/e/d", "新增 / 编辑 / 移除"),
             Line::from(""),
@@ -849,7 +892,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
         help_entry("p / s / x", "采购 / 检索 / 导出图纸"),
         help_entry("i / d", "导入 / 移除图纸"),
         help_entry("u / D / l", "启动 / 停止编队 / 查看日志"),
-        help_entry("a / d", "添加 / 移除编队配置"),
+        help_entry("T / a / d", "模板创建 / 添加 / 移除编队配置"),
     ];
     let protocols = vec![
         help_title("舰队规程 / FLEET PROTOCOL"),
@@ -991,6 +1034,7 @@ fn draw_hints(frame: &mut Frame, area: Rect, app: &App) {
             ("u", "启动"),
             ("D", "停止"),
             ("l", "日志"),
+            ("T", "模板"),
             ("a", "添加"),
             ("d", "移除"),
         ],
@@ -1089,6 +1133,38 @@ fn confirmation_color(action: &Action) -> Color {
     }
 }
 
+fn draw_viewer(
+    frame: &mut Frame,
+    area: Rect,
+    title: &str,
+    lines: &[String],
+    scroll: u16,
+    update: bool,
+) {
+    let popup = centered(area, 90, 85);
+    frame.render_widget(Clear, popup);
+    let text = lines
+        .iter()
+        .map(|line| Line::from(line.clone()))
+        .collect::<Vec<_>>();
+    let hint = if update {
+        " ↑↓ 滚动 · S 跳过当前版本 · C 恢复全部提醒 · Esc 关闭 "
+    } else {
+        " ↑↓ 滚动 · Esc 关闭 "
+    };
+    frame.render_widget(
+        Paragraph::new(text)
+            .style(Style::default().fg(TEXT).bg(PANEL))
+            .block(
+                overlay_panel(title, "SHIP LOG", ACCENT)
+                    .title_bottom(Line::from(hint).style(Style::default().fg(MUTED))),
+            )
+            .scroll((scroll, 0))
+            .wrap(Wrap { trim: false }),
+        popup,
+    );
+}
+
 fn draw_overlay(frame: &mut Frame, area: Rect, overlay: &mut Overlay) {
     match overlay {
         Overlay::Confirm {
@@ -1121,24 +1197,13 @@ fn draw_overlay(frame: &mut Frame, area: Rect, overlay: &mut Overlay) {
             title,
             lines,
             scroll,
-        } => {
-            let popup = centered(area, 90, 85);
-            frame.render_widget(Clear, popup);
-            let text = lines
-                .iter()
-                .map(|line| Line::from(line.clone()))
-                .collect::<Vec<_>>();
-            frame.render_widget(
-                Paragraph::new(text)
-                    .style(Style::default().fg(TEXT).bg(PANEL))
-                    .block(overlay_panel(title, "SHIP LOG", ACCENT).title_bottom(
-                        Line::from(" ↑↓ 滚动 · Esc 关闭 ").style(Style::default().fg(MUTED)),
-                    ))
-                    .scroll((*scroll, 0))
-                    .wrap(Wrap { trim: false }),
-                popup,
-            );
-        }
+        } => draw_viewer(frame, area, title, lines, *scroll, false),
+        Overlay::UpdateViewer {
+            title,
+            lines,
+            scroll,
+            ..
+        } => draw_viewer(frame, area, title, lines, *scroll, true),
         Overlay::Form(form) => {
             let rows = (form.fields.len() as u16) * 2 + 3;
             let popup = centered_rows(area, 72, rows);
@@ -1178,6 +1243,62 @@ fn draw_overlay(frame: &mut Frame, area: Rect, overlay: &mut Overlay) {
                     .wrap(Wrap { trim: false }),
                 popup,
             );
+        }
+        Overlay::Templates { templates, state } => {
+            let popup = centered(area, 90, 78);
+            frame.render_widget(Clear, popup);
+            let block = overlay_panel("编队模板", "COMPOSE TEMPLATES", ACCENT).title_bottom(
+                Line::from(" Enter 选择并输入项目名 · Esc 取消 ").style(Style::default().fg(MUTED)),
+            );
+            let inner = block.inner(popup);
+            frame.render_widget(block, popup);
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(2), Constraint::Min(3)])
+                .split(inner);
+            let built_in = templates
+                .iter()
+                .filter(|template| template.built_in)
+                .count();
+            frame.render_widget(
+                Paragraph::new(format!(
+                    "{} 个模板 · {} 个内置 · {} 个自定义",
+                    templates.len(),
+                    built_in,
+                    templates.len().saturating_sub(built_in)
+                ))
+                .style(Style::default().fg(TEXT)),
+                chunks[0],
+            );
+            let selected = state.selected();
+            let rows = templates.iter().enumerate().map(|(index, template)| {
+                let selected = selected == Some(index);
+                Row::new(vec![
+                    selection_marker(selected),
+                    Cell::from(if template.built_in {
+                        "内置"
+                    } else {
+                        "自定义"
+                    }),
+                    Cell::from(format!("{} ({})", template.title, template.id)),
+                    Cell::from(template.desc.clone()),
+                    Cell::from(template.tag.join(" · ")),
+                ])
+                .style(row_style(selected, index))
+            });
+            let table = Table::new(
+                rows,
+                [
+                    Constraint::Length(2),
+                    Constraint::Length(7),
+                    Constraint::Length(28),
+                    Constraint::Min(26),
+                    Constraint::Length(18),
+                ],
+            )
+            .header(header(&["", "来源", "模板", "说明", "标签"]))
+            .column_spacing(1);
+            frame.render_stateful_widget(table, chunks[1], state);
         }
         Overlay::Search {
             term,

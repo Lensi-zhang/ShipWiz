@@ -34,14 +34,52 @@ const fleet = useFleetStore();
 const appearance = useAppearanceStore();
 const showOnboarding = ref(false);
 const navigation = computed(() => [
-  { name: "fleet", path: "/fleet", label: dict.nav.fleet, icon: Ship, hint: "管理与切换舰船" },
-  { name: "container", path: "/container", label: dict.nav.container, icon: Box, hint: "查看集装箱与服务状态" },
-  { name: "image", path: "/image", label: dict.nav.image, icon: Images, hint: "采购与维护货箱图纸" },
-  { name: "compose", path: "/compose", label: dict.nav.compose, icon: FileStack, hint: "编排多服务编队" },
-  { name: "monitor", path: "/monitor", label: dict.nav.monitor, icon: Activity, hint: "查看实时资源与异常" },
-  { name: "setting", path: "/setting", label: dict.nav.setting, icon: Settings, hint: "调整引擎、补给港与界面" },
+  {
+    name: "fleet",
+    path: "/fleet",
+    label: dict.nav.fleet,
+    icon: Ship,
+    hint: "管理与切换舰船",
+  },
+  {
+    name: "container",
+    path: "/container",
+    label: dict.nav.container,
+    icon: Box,
+    hint: "查看集装箱与服务状态",
+  },
+  {
+    name: "image",
+    path: "/image",
+    label: dict.nav.image,
+    icon: Images,
+    hint: "采购与维护货箱图纸",
+  },
+  {
+    name: "compose",
+    path: "/compose",
+    label: dict.nav.compose,
+    icon: FileStack,
+    hint: "编排多服务编队",
+  },
+  {
+    name: "monitor",
+    path: "/monitor",
+    label: dict.nav.monitor,
+    icon: Activity,
+    hint: "查看实时资源与异常",
+  },
+  {
+    name: "setting",
+    path: "/setting",
+    label: dict.nav.setting,
+    icon: Settings,
+    hint: "调整引擎、补给港与界面",
+  },
 ]);
-const currentNavigation = computed(() => navigation.value.find((item) => item.name === route.name));
+const currentNavigation = computed(() =>
+  navigation.value.find((item) => item.name === route.name),
+);
 const themeOverrides = computed<GlobalThemeOverrides>(() => ({
   common: {
     primaryColor: "#2F7DFF",
@@ -70,7 +108,11 @@ onMounted(async () => {
   // 启动后静默检查更新：网络异常不打扰用户，发现新版本再提示
   checkUpdate()
     .then((info) => {
-      if (info) alertWarning(`发现新版本 v${info.latest}，可在「设置 · 关于」查看`, { closable: true, duration: 7000 });
+      if (info)
+        alertWarning(`发现新版本 v${info.latest}，可在「设置 · 关于」查看`, {
+          closable: true,
+          duration: 7000,
+        });
     })
     .catch(() => {});
 });
@@ -83,10 +125,15 @@ onMounted(async () => {
     style="height: 100%"
   >
     <n-global-style />
-    <div class="app-shell" :class="{ 'sidebar-collapsed': appearance.collapsed }">
+    <div
+      class="app-shell"
+      :class="{ 'sidebar-collapsed': appearance.collapsed }"
+    >
       <header class="bridge-bar">
         <RouterLink to="/fleet" class="brand" aria-label="ShipWiz 舰队总览">
-          <span class="brand-mark"><Anchor :size="20" :stroke-width="1.8" /></span>
+          <span class="brand-mark"
+            ><Anchor :size="20" :stroke-width="1.8"
+          /></span>
           <span class="brand-word">ShipWiz<small>舰桥控制台</small></span>
         </RouterLink>
         <div class="bridge-context">
@@ -94,19 +141,36 @@ onMounted(async () => {
           <strong>{{ currentNavigation?.label || dict.app.workspace }}</strong>
         </div>
         <div class="bridge-actions">
-          <div v-if="fleet.currentNode" class="current-ship" :title="fleet.currentNode.name">
+          <div
+            v-if="fleet.currentNode"
+            class="current-ship"
+            :title="fleet.currentNode.name"
+          >
             <span class="status-light" :class="fleet.currentNode.status" />
             <span>{{ fleet.currentNode.name }}</span>
-            <small>{{ fleet.currentNode.status === "online" ? dict.common.online : dict.common.offline }}</small>
+            <small>{{
+              fleet.currentNode.status === "online"
+                ? dict.common.online
+                : dict.common.offline
+            }}</small>
           </div>
           <n-tooltip placement="bottom">
             <template #trigger>
               <button
                 class="bridge-icon-button"
-                :aria-label="appearance.theme === 'deep' ? '切换浅海模式' : '切换深海模式'"
-                @click="appearance.setTheme(appearance.theme === 'deep' ? 'shallow' : 'deep')"
+                :aria-label="
+                  appearance.theme === 'deep' ? '切换浅海模式' : '切换深海模式'
+                "
+                @click="
+                  appearance.setTheme(
+                    appearance.theme === 'deep' ? 'shallow' : 'deep',
+                  )
+                "
               >
-                <n-icon :component="appearance.theme === 'deep' ? Sun : Moon" :size="17" />
+                <n-icon
+                  :component="appearance.theme === 'deep' ? Sun : Moon"
+                  :size="17"
+                />
               </button>
             </template>
             {{ appearance.theme === "deep" ? "切换浅海模式" : "切换深海模式" }}
@@ -116,8 +180,15 @@ onMounted(async () => {
 
       <aside class="sidebar" :aria-label="dict.app.workspace">
         <nav class="main-nav">
-          <span v-if="!appearance.collapsed" class="nav-section-label">航行工作区</span>
-          <n-tooltip v-for="item in navigation" :key="item.name" placement="right" :disabled="!appearance.collapsed">
+          <span v-if="!appearance.collapsed" class="nav-section-label"
+            >航行工作区</span
+          >
+          <n-tooltip
+            v-for="item in navigation"
+            :key="item.name"
+            placement="right"
+            :disabled="!appearance.collapsed"
+          >
             <template #trigger>
               <RouterLink
                 :to="item.path"
@@ -127,24 +198,40 @@ onMounted(async () => {
                 :title="appearance.collapsed ? item.label : undefined"
               >
                 <n-icon :component="item.icon" :size="18" />
-                <span class="nav-copy"><span>{{ item.label }}</span><small>{{ item.hint }}</small></span>
-                <span v-if="!appearance.collapsed && route.name === item.name" class="nav-active-dot" />
+                <span class="nav-copy"
+                  ><span>{{ item.label }}</span
+                  ><small>{{ item.hint }}</small></span
+                >
+                <span
+                  v-if="!appearance.collapsed && route.name === item.name"
+                  class="nav-active-dot"
+                />
               </RouterLink>
             </template>
-            <strong>{{ item.label }}</strong><br>{{ item.hint }}
+            <strong>{{ item.label }}</strong><br />{{ item.hint }}
           </n-tooltip>
         </nav>
         <div class="sidebar-footer">
           <div v-if="!appearance.collapsed" class="ship-status">
-            <span class="status-light" :class="fleet.currentNode?.status || 'offline'" />
-            <div><strong>{{ fleet.currentNode?.name || dict.common.untitled }}</strong><small>当前操控舰船</small></div>
+            <span
+              class="status-light"
+              :class="fleet.currentNode?.status || 'offline'"
+            />
+            <div>
+              <strong>{{
+                fleet.currentNode?.name || dict.common.untitled
+              }}</strong><small>当前操控舰船</small>
+            </div>
           </div>
           <button
             class="collapse-button"
             :aria-label="appearance.collapsed ? '展开导航' : '收起导航'"
             @click="appearance.collapsed = !appearance.collapsed"
           >
-            <n-icon :component="appearance.collapsed ? ChevronRight : ChevronLeft" :size="16" />
+            <n-icon
+              :component="appearance.collapsed ? ChevronRight : ChevronLeft"
+              :size="16"
+            />
             <span v-if="!appearance.collapsed">收起导航</span>
           </button>
         </div>

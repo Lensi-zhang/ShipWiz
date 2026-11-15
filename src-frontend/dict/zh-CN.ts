@@ -133,7 +133,8 @@ export const dict = {
     emptyFiltered: "没有符合当前筛选条件的集装箱",
     loadFailed: "暂时无法获取舰载清单，请检查舰船连接后刷新。",
     removeTitle: "确认撤收这只集装箱？",
-    removeDescription: "运行中的集装箱也会被强制撤收，其内部未持久化数据将丢失。",
+    removeDescription:
+      "运行中的集装箱也会被强制撤收，其内部未持久化数据将丢失。",
     createModal: {
       title: "装载新集装箱",
       basic: "基础配置",
@@ -261,6 +262,8 @@ export const dict = {
       submit: "开始采购",
       pulling: "采购中",
       required: "请填写图纸名称与标签",
+      progressUnknown: "Docker 尚未提供镜像层总大小，当前仅显示真实状态。",
+      unknownSize: "大小未知",
     },
     registry: {
       add: "新增补给港",
@@ -280,7 +283,8 @@ export const dict = {
       removeDescription: "只会删除本地地址配置，不会影响已采购的图纸。",
     },
     removeTitle: "确认移除此货箱图纸？",
-    removeDescription: "移除后无法直接用于装载；若仍被引用，动力引擎会拒绝操作。",
+    removeDescription:
+      "移除后无法直接用于装载；若仍被引用，动力引擎会拒绝操作。",
     messages: {
       pulled: "图纸已采购到本舰",
       removed: "图纸已移除",
@@ -367,7 +371,11 @@ export const dict = {
     container: {
       phase: "PHASE 2",
       description: "集中管理集装箱的起锚、抛锚、撤收与航行日志。",
-      features: ["集装箱列表与资源占用", "可视化创建与生命周期操作", "航行日志与登舱巡检"],
+      features: [
+        "集装箱列表与资源占用",
+        "可视化创建与生命周期操作",
+        "航行日志与登舱巡检",
+      ],
     },
     image: {
       phase: "PHASE 3",

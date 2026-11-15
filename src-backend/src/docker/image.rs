@@ -1,3 +1,4 @@
+use bollard::models::CreateImageInfo;
 use bollard::query_parameters::{
     CreateImageOptions, ImportImageOptions, ListImagesOptions, RemoveImageOptions,
     SearchImagesOptions,
@@ -18,6 +19,8 @@ use crate::config::{load_registries, RegistrySource, ShipNode};
 use crate::error::AppError;
 #[cfg(feature = "desktop")]
 use crate::error::{respond, ApiResponse};
+#[cfg(feature = "desktop")]
+use tauri::Emitter;
 
 const MAX_OUTPUT_LINES: usize = 80;
 
@@ -72,6 +75,23 @@ impl From<DockerHubSearchResult> for ImageSearchResult {
 pub struct ImageOperationResult {
     pub reference: String,
     pub output: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImagePullProgress {
+    pub layer_id: String,
+    pub status: String,
+    pub current: Option<i64>,
+    pub total: Option<i64>,
+}
+
+#[cfg(feature = "desktop")]
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImagePullProgressEvent {
+    operation_id: String,
+    progress: ImagePullProgress,
 }
 
 struct RegistryAddress {
@@ -223,6 +243,20 @@ fn append_status(lines: &mut VecDeque<String>, status: Option<String>) {
     lines.push_back(status.to_string());
 }
 
+fn image_pull_progress(info: &CreateImageInfo) -> Option<ImagePullProgress> {
+    let status = info.status.as_deref()?.trim();
+    if status.is_empty() {
+        return None;
+    }
+    let progress_detail = info.progress_detail.as_ref();
+    Some(ImagePullProgress {
+        layer_id: info.id.clone().unwrap_or_default(),
+        status: status.to_string(),
+        current: progress_detail.and_then(|detail| detail.current),
+        total: progress_detail.and_then(|detail| detail.total),
+    })
+}
+
 fn join_status(lines: VecDeque<String>) -> String {
     lines.into_iter().collect::<Vec<_>>().join("\n")
 }
@@ -329,11 +363,15 @@ pub async fn search_images(node_id: String, term: String) -> ApiResponse<Vec<Ima
     )
 }
 
-pub(crate) async fn pull_for_node(
+pub(crate) async fn pull_for_node_with_progress<F>(
     node: &ShipNode,
     reference: &str,
     registry_id: Option<&str>,
-) -> Result<ImageOperationResult, AppError> {
+    mut on_progress: F,
+) -> Result<ImageOperationResult, AppError>
+where
+    F: FnMut(ImagePullProgress),
+{
     let reference = required(reference, "请输入需要拉取的图纸名称与标签。")?;
     let registries = load_registries()?;
     let pull_reference = resolve_pull_reference(reference, registry_id, &registries)?;
@@ -349,8 +387,11 @@ pub(crate) async fn pull_for_node(
     let mut statuses = VecDeque::new();
     while let Some(item) = stream.next().await {
         let info = item.map_err(AppError::docker)?;
-        if let Some(error) = info.error {
-            return Err(AppError::docker(error));
+        if let Some(error) = &info.error {
+            return Err(AppError::docker(error.clone()));
+        }
+        if let Some(progress) = image_pull_progress(&info) {
+            on_progress(progress);
         }
         append_status(&mut statuses, info.status);
     }
@@ -363,14 +404,32 @@ pub(crate) async fn pull_for_node(
 #[cfg(feature = "desktop")]
 #[tauri::command]
 pub async fn pull_image(
+    app: tauri::AppHandle,
     node_id: String,
     reference: String,
     registry_id: Option<String>,
+    operation_id: Option<String>,
 ) -> ApiResponse<ImageOperationResult> {
     respond(
         async {
             let node = node_by_id(&node_id)?;
-            pull_for_node(&node, &reference, registry_id.as_deref()).await
+            pull_for_node_with_progress(
+                &node,
+                &reference,
+                registry_id.as_deref(),
+                move |progress| {
+                    if let Some(operation_id) = operation_id.as_deref() {
+                        let _ = app.emit(
+                            "shipwiz:image-pull-progress",
+                            ImagePullProgressEvent {
+                                operation_id: operation_id.to_string(),
+                                progress,
+                            },
+                        );
+                    }
+                },
+            )
+            .await
         }
         .await,
     )
@@ -499,6 +558,67 @@ pub async fn import_image(node_id: String, source: String) -> ApiResponse<ImageO
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bollard::models::ProgressDetail;
+
+    #[test]
+    fn pull_progress_preserves_reported_total() {
+        let info = CreateImageInfo {
+            id: Some("layer-1".to_string()),
+            status: Some("Downloading".to_string()),
+            progress_detail: Some(ProgressDetail {
+                current: Some(128),
+                total: Some(512),
+            }),
+            ..Default::default()
+        };
+
+        let progress = image_pull_progress(&info).expect("有效状态应产生拉取进度");
+        assert_eq!(progress.layer_id, "layer-1");
+        assert_eq!(progress.status, "Downloading");
+        assert_eq!(progress.current, Some(128));
+        assert_eq!(progress.total, Some(512));
+
+        let json = serde_json::to_value(progress).expect("拉取进度应能序列化");
+        assert_eq!(json["layerId"], "layer-1");
+        assert_eq!(json["current"], 128);
+        assert_eq!(json["total"], 512);
+    }
+
+    #[test]
+    fn pull_progress_does_not_invent_missing_total() {
+        let info = CreateImageInfo {
+            id: Some("layer-2".to_string()),
+            status: Some("Extracting".to_string()),
+            progress_detail: Some(ProgressDetail {
+                current: Some(64),
+                total: None,
+            }),
+            ..Default::default()
+        };
+
+        let progress = image_pull_progress(&info).expect("有效状态应产生拉取进度");
+        assert_eq!(progress.current, Some(64));
+        assert_eq!(progress.total, None);
+    }
+
+    #[test]
+    fn pull_progress_ignores_messages_without_status() {
+        let info = CreateImageInfo {
+            id: Some("layer-3".to_string()),
+            progress_detail: Some(ProgressDetail {
+                current: Some(32),
+                total: Some(128),
+            }),
+            ..Default::default()
+        };
+        assert!(image_pull_progress(&info).is_none());
+
+        let info = CreateImageInfo {
+            status: Some("  ".to_string()),
+            ..Default::default()
+        };
+        assert!(image_pull_progress(&info).is_none());
+    }
 
     #[test]
     fn docker_hub_search_results_include_optional_fields() {

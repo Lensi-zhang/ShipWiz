@@ -9,10 +9,17 @@ export const useFleetStore = defineStore("fleet", () => {
   const loading = ref(false);
   const failed = ref(false);
   const testingId = ref<string | null>(null);
-  const overview = ref<FleetOverview>({ containers: 0, running: 0, images: 0, unavailable: 0 });
+  const overview = ref<FleetOverview>({
+    containers: 0,
+    running: 0,
+    images: 0,
+    unavailable: 0,
+  });
   const overviewLoading = ref(false);
   const currentNode = computed(
-    () => state.value.nodes.find((node) => node.id === state.value.currentNodeId) ?? null,
+    () =>
+      state.value.nodes.find((node) => node.id === state.value.currentNodeId) ??
+      null,
   );
   const onlineCount = computed(
     () => state.value.nodes.filter((node) => node.status === "online").length,
@@ -45,7 +52,9 @@ export const useFleetStore = defineStore("fleet", () => {
 
   async function save(input: NodeInput, id?: string) {
     try {
-      state.value = id ? await fleetApi.update(id, input) : await fleetApi.create(input);
+      state.value = id
+        ? await fleetApi.update(id, input)
+        : await fleetApi.create(input);
       return true;
     } catch {
       return false;

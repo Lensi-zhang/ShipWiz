@@ -10,8 +10,9 @@
 - **编队（Compose）**：YAML 编辑与校验、up/down、日志、模板
 - **监控**：容器与引擎资源总览
 - **补给港**：镜像仓库（Registry）管理与默认仓库设置
-- **版本更新**：桌面端与 TUI 启动后自动检查 GitHub Release，也支持手动检查并查看更新说明
-- **终端界面**：k9s / lazydocker 风格全屏 TUI，六个工作区与舰船破浪启动动画
+- **版本更新**：桌面端与 TUI 启动后自动检查 GitHub Release，支持 24 小时缓存、跳过版本与强制复查；桌面端可校验签名并一键下载、安装、重启
+- **终端界面**：k9s / lazydocker 风格全屏 TUI，六个工作区、舰船破浪启动动画、按需绘制与当前页定时刷新
+- **真实进度**：桌面端与 TUI 展示 Docker 镜像分层拉取状态和已知的字节进度，不虚构未知大小
 - **界面**：深海/浅海主题、200px/56px 折叠侧栏、加载/空态/错误态三态反馈、航海主题操作通知动画
 
 ## 技术栈
@@ -41,7 +42,7 @@ package.json        前端依赖与脚本
 ## 环境要求
 
 - Node.js 18+ 与 npm
-- Rust 1.77.2+（含 MSVC 工具链）
+- Rust stable（桌面签名更新依赖要求 Rust 1.90+；Windows 含 MSVC 工具链）
 - Docker Engine / Docker Desktop（本机连接时需要）
 - Compose 编队功能需要 `docker compose` 插件；应用会依次从 `SHIPWIZ_DOCKER_PATH`、`PATH` 以及 Docker Desktop / Rancher Desktop / Podman 的默认安装目录查找 CLI，并兼容独立的 `docker-compose`，无需手动配置环境变量
 - Windows 构建额外需要 Strawberry Perl 与 NASM：`ssh2` 的 vendored OpenSSL 依赖它们
@@ -60,8 +61,17 @@ npm run tauri:build  # 打包桌面应用
 
 ```bash
 cargo fmt --all -- --check
-cargo check
-cargo test --lib
+cargo clippy --no-default-features --all-targets -- -D warnings
+cargo clippy --all-targets -- -D warnings
+cargo test --no-default-features
+cargo check --no-default-features --all-targets
+cargo check --all-targets
+cargo test
+
+npm run lint          # ESLint（TypeScript + Vue）
+npm run format:check  # Prettier 格式检查
+npm test              # Vitest 前端单元测试
+npm run check:version # 六处版本号一致性检查
 ```
 
 仅构建终端界面版本（不编译 Tauri，Linux 服务器无需安装 WebKit/GTK）：
@@ -76,9 +86,9 @@ cargo build --release --no-default-features --bin shipwiz-cli
 桌面端在 Linux 上提供 `.deb` 与 `.AppImage`，由 GitHub Actions 在打 tag 时自动构建：
 
 ```bash
-sudo dpkg -i shipwiz_0.1.0_amd64.deb   # Debian / Ubuntu
-chmod +x ShipWiz_0.1.0_amd64.AppImage   # 其他发行版
-./ShipWiz_0.1.0_amd64.AppImage
+sudo dpkg -i shipwiz_0.2.4_amd64.deb   # Debian / Ubuntu
+chmod +x ShipWiz_0.2.4_amd64.AppImage   # 其他发行版
+./ShipWiz_0.2.4_amd64.AppImage
 ```
 
 CLI 可直接下载独立二进制，或用 npm 安装，启动后直接进入全屏终端界面：
@@ -88,17 +98,27 @@ npm install -g shipwiz-cli
 shipwiz-cli
 ```
 
+桌面端在「设置 · 关于」中手动检查更新。发现新版本后可跳过提醒、复制下载地址，或通过「下载并安装」校验签名、显示实际下载进度并自动重启；签名包尚未发布或自动升级失败时，仍可使用 Release 下载地址手动安装。镜像拉取弹窗会按层展示 Docker 返回的状态与字节数，仅在总大小已知时显示百分比。
+
 ## 终端界面（shipwiz-cli）
 
 `shipwiz-cli` 是一个 k9s / lazydocker 风格的交互式 TUI，与桌面端共用 `~/.shipwiz/config.json`、`known_hosts.json` 与系统密钥串，可在服务器上无界面运行。
 
 启动后默认进入集装箱页，顶部标签用 `1`–`6` 或 `Tab` 切换，`F5` 全局刷新，`U` 检查更新，`?` 查看完整按键手册，`q` 退出。
 
-启动时会自动检查 GitHub 最新发布版本（失败时静默，不打扰使用）；按 `U` 可手动复查，发现新版本会打开更新说明与下载地址。
+启动时会自动检查 GitHub 最新发布版本（失败时静默，不打扰使用），24 小时内的检查结果缓存在 `~/.shipwiz/update.json`。按 `U` 可绕过缓存与跳过状态强制复查；更新说明中按 `S` 跳过当前版本，按 `C` 恢复全部更新提醒。
 
 进入主界面前会先播放约 4 秒的舰船破浪动画，独占终端画布，播完自动收尾，无需按键：
 
 ![启动动画](screenshots/cli-splash.png)
+
+非交互终端或小于 80×24 的终端会自动跳过动画。也可主动禁用：
+
+```bash
+shipwiz-cli --no-splash
+# 或设置非空环境变量
+export SHIPWIZ_NO_SPLASH=1
+```
 
 动画也可脱离主程序单独预览：
 
@@ -112,11 +132,11 @@ cargo run --example splash_demo -- --dump        # 打印关键帧纯文本
 | --- | --- |
 | 集装箱 | `s` 启航 · `x` 停泊 · `r` 重启 · `d` 撤收 · `l` 日志 · `e` 执行命令 · `c` 新建 · `Enter` 详情 |
 | 图纸 | `p` 采购 · `s` 检索（结果中 `Enter` 直接采购）· `x` 导出 · `i` 导入 · `d` 移除 |
-| 编队 | `u` 启动 · `Shift+D` 停止 · `l` 日志 · `a` 从 YAML 文件添加 · `d` 移除 |
+| 编队 | `u` 启动 · `Shift+D` 停止 · `l` 日志 · `a` 从 YAML 文件添加 · `T` 应用模板 · `d` 移除 |
 | 节点 | `Enter` 切换当前节点 · `t` 测试连接 · `a` 新增 · `e` 编辑 · `d` 移除 |
 | 补给港 | `a` 新增 · `u` 设为默认 · `d` 移除 |
 
-弹窗内 `Tab`/`↑`/`↓` 切换表单字段，`Enter` 提交，`Esc` 取消；确认框用 `y` / `n` 应答。
+弹窗内 `Tab`/`↑`/`↓` 切换表单字段，`Enter` 提交，`Esc` 取消；确认框用 `y` / `n` 应答。主界面仅在有变化时重绘，空闲时每 10 秒刷新当前页；编辑表单、查看日志或执行拉取/编队操作期间暂停定时刷新，`F5` 始终可手动全量刷新。
 
 无头服务器无法访问系统密钥串时，可用环境变量提供 SSH 凭据：
 
@@ -128,7 +148,23 @@ export SHIPWIZ_SSH_PASSPHRASE='...'        # 私钥口令（可选）
 
 ## 发布
 
-推送 `v*` tag 会触发 `.github/workflows/release.yml`：构建 Linux deb/AppImage，以及 Linux、Windows、macOS 的 `shipwiz-cli` 二进制并上传到 Release。npm 包位于 `npm/`，发布前先更新版本号：
+发布前统一提升并校验六处版本号（`Cargo.toml`、`Cargo.lock`、`package.json`、`package-lock.json`、`npm/package.json`、`tauri.conf.json`）：
+
+```bash
+npm run bump -- 0.2.4
+npm run check:version
+```
+
+推送与清单版本一致的 `v*` tag 会触发 `.github/workflows/release.yml`：构建 Linux deb/AppImage、Windows MSI/NSIS、macOS app/DMG 及对应签名更新产物，同时构建 Linux、Windows、macOS 的 `shipwiz-cli` 二进制并上传到 Release。Tauri Action 还会上传桌面端升级所需的 `latest.json`。
+
+仓库维护者需要先在 GitHub Actions Secrets 中配置：
+
+- `TAURI_SIGNING_PRIVATE_KEY`：Tauri 签名私钥内容，只保存在安全的密钥存储中，不提交到仓库
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：私钥口令（未设置口令时可留空）
+
+`tauri.conf.json` 只包含对应公钥。缺少签名私钥时桌面 Release 任务会直接失败，避免发布无法校验的升级包。正式启用一键升级前，应使用两个连续发布版本完成一次真实签名升级验收。
+
+npm 包位于 `npm/`：
 
 ```bash
 npm publish npm

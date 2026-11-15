@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { NButton, NForm, NFormItem, NInput, NModal, NSelect } from "naive-ui";
 import { alertWarning } from "../utils/message";
+import ImagePullProgress from "./ImagePullProgress.vue";
 import { dict } from "../dict";
 import { useImageStore } from "../store/image";
 
@@ -15,12 +16,14 @@ const emit = defineEmits<{
   pulled: [];
 }>();
 const images = useImageStore();
-const reference = ref("");
+const imageReference = ref("");
 const registryId = ref<string | null>(null);
 const submitting = ref(false);
 const registryOptions = computed(() =>
   images.registries.map((registry) => ({
-    label: registry.isDefault ? `${registry.name} · ${dict.image.registry.default}` : registry.name,
+    label: registry.isDefault
+      ? `${registry.name} · ${dict.image.registry.default}`
+      : registry.name,
     value: registry.id,
   })),
 );
@@ -29,18 +32,24 @@ watch(
   () => props.show,
   (show) => {
     if (!show) return;
-    reference.value = props.reference ?? "";
-    registryId.value = images.registries.find((registry) => registry.isDefault)?.id ?? null;
+    imageReference.value = props.reference ?? "";
+    registryId.value =
+      images.registries.find((registry) => registry.isDefault)?.id ?? null;
   },
 );
 
 async function submit() {
-  if (!reference.value.trim()) {
+  if (submitting.value) return;
+  if (!imageReference.value.trim()) {
     alertWarning(dict.image.pullModal.required);
     return;
   }
   submitting.value = true;
-  const success = await images.pull(props.nodeId, reference.value.trim(), registryId.value);
+  const success = await images.pull(
+    props.nodeId,
+    imageReference.value.trim(),
+    registryId.value,
+  );
   submitting.value = false;
   if (success) {
     emit("update:show", false);
@@ -62,7 +71,7 @@ async function submit() {
     <n-form label-placement="top" @submit.prevent="submit">
       <n-form-item :label="dict.image.pullModal.reference" required>
         <n-input
-          v-model:value="reference"
+          v-model:value="imageReference"
           :placeholder="dict.image.pullModal.referencePlaceholder"
           :disabled="submitting"
           autofocus
@@ -77,12 +86,17 @@ async function submit() {
         />
       </n-form-item>
       <p class="pull-hint">{{ dict.image.pullModal.hint }}</p>
+      <ImagePullProgress v-if="submitting" />
       <div class="modal-actions">
         <n-button :disabled="submitting" @click="emit('update:show', false)">
           {{ dict.common.cancel }}
         </n-button>
         <n-button type="primary" :loading="submitting" @click="submit">
-          {{ submitting ? dict.image.pullModal.pulling : dict.image.pullModal.submit }}
+          {{
+            submitting
+              ? dict.image.pullModal.pulling
+              : dict.image.pullModal.submit
+          }}
         </n-button>
       </div>
     </n-form>
@@ -90,7 +104,19 @@ async function submit() {
 </template>
 
 <style scoped>
-.pull-image-modal { width: 500px; max-width: calc(100vw - 40px); }
-.pull-hint { margin: -4px 0 20px; color: #879a9b; font-size: 11px; line-height: 1.7; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.pull-image-modal {
+  width: 500px;
+  max-width: calc(100vw - 40px);
+}
+.pull-hint {
+  margin: -4px 0 20px;
+  color: #879a9b;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
 </style>

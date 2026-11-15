@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "ShipWiz",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "identifier": "com.shipwiz.desktop",
   "mainBinaryName": "shipwiz",
   "build": {
@@ -29,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "category": "DeveloperTool",
     "shortDescription": "轻量航海风 Docker 桌面与命令行客户端",
     "icon": [
@@ -38,5 +39,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ3OTdBNTZGM0IwMTdEQzcKUldUSGZRRTdiNldYUnlwSUx5dkU3L2RCVHdPQTM0RXdmS2lqa0RmN1pKVXBiUTBwOGZRb1dpeEYK",
+      "endpoints": [
+        "https://github.com/Lensi-zhang/ShipWiz/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

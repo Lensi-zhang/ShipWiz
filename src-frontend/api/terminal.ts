@@ -23,7 +23,13 @@ export function decodeTerminalOutput(value: string) {
 }
 
 export const terminalApi = {
-  async open(nodeId: string, containerId: string, cols: number, rows: number, sessionId: string) {
+  async open(
+    nodeId: string,
+    containerId: string,
+    cols: number,
+    rows: number,
+    sessionId: string,
+  ) {
     const result = await command<TerminalOpenResult>("terminal_open", {
       nodeId,
       containerId,
@@ -43,9 +49,13 @@ export const terminalApi = {
     return command<boolean>("terminal_close", { sessionId });
   },
   onOutput(handler: (event: TerminalOutputEvent) => void) {
-    return listen<TerminalOutputEvent>("terminal-output", (event) => handler(event.payload));
+    return listen<TerminalOutputEvent>("terminal-output", (event) =>
+      handler(event.payload),
+    );
   },
   onStatus(handler: (event: TerminalStatusEvent) => void) {
-    return listen<TerminalStatusEvent>("terminal-status", (event) => handler(event.payload));
+    return listen<TerminalStatusEvent>("terminal-status", (event) =>
+      handler(event.payload),
+    );
   },
 };

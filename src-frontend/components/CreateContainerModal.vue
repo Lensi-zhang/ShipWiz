@@ -59,8 +59,16 @@ function emptyForm(): CreateFormModel {
 const model = ref<CreateFormModel>(emptyForm());
 const text = dict.container.createModal;
 const rules: FormRules = {
-  name: { required: true, message: text.nameRequired, trigger: ["blur", "input"] },
-  image: { required: true, message: text.imageRequired, trigger: ["blur", "input"] },
+  name: {
+    required: true,
+    message: text.nameRequired,
+    trigger: ["blur", "input"],
+  },
+  image: {
+    required: true,
+    message: text.imageRequired,
+    trigger: ["blur", "input"],
+  },
 };
 const protocolOptions = [
   { label: "TCP", value: "tcp" },
@@ -68,7 +76,10 @@ const protocolOptions = [
   { label: "SCTP", value: "sctp" },
 ];
 const restartOptions = computed(() =>
-  Object.entries(text.restartOptions).map(([value, label]) => ({ value, label })),
+  Object.entries(text.restartOptions).map(([value, label]) => ({
+    value,
+    label,
+  })),
 );
 const imageOptions = computed(() => {
   const keyword = (model.value.image ?? "").trim().toLowerCase();
@@ -98,7 +109,12 @@ watch(
 );
 
 function addPort() {
-  model.value.ports.push({ hostPort: 8080, containerPort: 80, protocol: "tcp", hostIp: "" });
+  model.value.ports.push({
+    hostPort: 8080,
+    containerPort: 80,
+    protocol: "tcp",
+    hostIp: "",
+  });
 }
 function addVolume() {
   model.value.volumes.push({ source: "", target: "", readOnly: false });
@@ -159,11 +175,20 @@ async function submit() {
       label-placement="top"
       require-mark-placement="right-hanging"
     >
-      <n-tabs v-model:value="activeTab" type="line" animated display-directive="show">
+      <n-tabs
+        v-model:value="activeTab"
+        type="line"
+        animated
+        display-directive="show"
+      >
         <n-tab-pane name="basic" :tab="text.basic">
           <div class="form-grid">
             <n-form-item :label="text.name" path="name">
-              <n-input v-model:value="model.name" :placeholder="text.namePlaceholder" maxlength="63" />
+              <n-input
+                v-model:value="model.name"
+                :placeholder="text.namePlaceholder"
+                maxlength="63"
+              />
             </n-form-item>
             <n-form-item :label="text.image" path="image">
               <div class="image-field">
@@ -177,7 +202,11 @@ async function submit() {
                 >
                   <template #empty>
                     <span class="auto-empty">
-                      {{ images.items.length ? text.imageEmpty : text.imageEmptyLibrary }}
+                      {{
+                        images.items.length
+                          ? text.imageEmpty
+                          : text.imageEmptyLibrary
+                      }}
                     </span>
                   </template>
                 </n-auto-complete>
@@ -186,7 +215,10 @@ async function submit() {
             </n-form-item>
           </div>
           <n-form-item :label="text.command" path="command">
-            <n-input v-model:value="model.command" :placeholder="text.commandPlaceholder" />
+            <n-input
+              v-model:value="model.command"
+              :placeholder="text.commandPlaceholder"
+            />
           </n-form-item>
           <n-form-item :label="text.env" path="envText">
             <n-input
@@ -204,11 +236,17 @@ async function submit() {
             <div class="section-heading">
               <span>{{ text.ports }}</span>
               <n-button size="small" dashed @click="addPort">
-                <template #icon><n-icon><Plus /></n-icon></template>
+                <template #icon
+                  ><n-icon><Plus /></n-icon
+                ></template>
                 {{ text.addPort }}
               </n-button>
             </div>
-            <div v-for="(port, index) in model.ports" :key="index" class="mapping-row port-row">
+            <div
+              v-for="(port, index) in model.ports"
+              :key="index"
+              class="mapping-row port-row"
+            >
               <n-input-number
                 v-model:value="port.hostPort"
                 :min="1"
@@ -224,9 +262,20 @@ async function submit() {
                 :show-button="false"
                 :placeholder="text.containerPort"
               />
-              <n-select v-model:value="port.protocol" :options="protocolOptions" />
-              <n-button quaternary circle size="small" :aria-label="dict.common.delete" @click="model.ports.splice(index, 1)">
-                <template #icon><n-icon><Trash2 /></n-icon></template>
+              <n-select
+                v-model:value="port.protocol"
+                :options="protocolOptions"
+              />
+              <n-button
+                quaternary
+                circle
+                size="small"
+                :aria-label="dict.common.delete"
+                @click="model.ports.splice(index, 1)"
+              >
+                <template #icon
+                  ><n-icon><Trash2 /></n-icon
+                ></template>
               </n-button>
             </div>
           </section>
@@ -235,20 +284,40 @@ async function submit() {
             <div class="section-heading">
               <span>{{ text.volumes }}</span>
               <n-button size="small" dashed @click="addVolume">
-                <template #icon><n-icon><Plus /></n-icon></template>
+                <template #icon
+                  ><n-icon><Plus /></n-icon
+                ></template>
                 {{ text.addVolume }}
               </n-button>
             </div>
-            <div v-for="(volume, index) in model.volumes" :key="index" class="mapping-row volume-row">
-              <n-input v-model:value="volume.source" :placeholder="text.source" />
+            <div
+              v-for="(volume, index) in model.volumes"
+              :key="index"
+              class="mapping-row volume-row"
+            >
+              <n-input
+                v-model:value="volume.source"
+                :placeholder="text.source"
+              />
               <ArrowRight class="mapping-arrow" :size="15" />
-              <n-input v-model:value="volume.target" :placeholder="text.target" />
+              <n-input
+                v-model:value="volume.target"
+                :placeholder="text.target"
+              />
               <label class="readonly-toggle">
                 <n-switch v-model:value="volume.readOnly" size="small" />
                 <span>{{ text.readOnly }}</span>
               </label>
-              <n-button quaternary circle size="small" :aria-label="dict.common.delete" @click="model.volumes.splice(index, 1)">
-                <template #icon><n-icon><Trash2 /></n-icon></template>
+              <n-button
+                quaternary
+                circle
+                size="small"
+                :aria-label="dict.common.delete"
+                @click="model.volumes.splice(index, 1)"
+              >
+                <template #icon
+                  ><n-icon><Trash2 /></n-icon
+                ></template>
               </n-button>
             </div>
           </section>
@@ -264,7 +333,10 @@ async function submit() {
               />
             </n-form-item>
             <n-form-item :label="text.network" path="network">
-              <n-input v-model:value="model.network" :placeholder="text.networkPlaceholder" />
+              <n-input
+                v-model:value="model.network"
+                :placeholder="text.networkPlaceholder"
+              />
             </n-form-item>
           </div>
           <div class="runtime-option">
@@ -272,7 +344,10 @@ async function submit() {
               <strong>{{ text.autoRemove }}</strong>
               <small>{{ text.autoRemoveHint }}</small>
             </div>
-            <n-switch v-model:value="model.autoRemove" :disabled="model.restartPolicy !== 'no'" />
+            <n-switch
+              v-model:value="model.autoRemove"
+              :disabled="model.restartPolicy !== 'no'"
+            />
           </div>
           <div class="runtime-option">
             <strong>{{ text.startAfterCreate }}</strong>
@@ -283,7 +358,9 @@ async function submit() {
     </n-form>
     <template #footer>
       <div class="modal-actions">
-        <n-button :disabled="creating" @click="visible = false">{{ dict.common.cancel }}</n-button>
+        <n-button :disabled="creating" @click="visible = false">{{
+          dict.common.cancel
+        }}</n-button>
         <n-button type="primary" :loading="creating" @click="submit">
           {{ creating ? text.creating : text.submit }}
         </n-button>
@@ -293,25 +370,105 @@ async function submit() {
 </template>
 
 <style scoped>
-.form-grid { display: grid; align-items: start; grid-template-columns: 1fr 1fr; gap: 16px; }
-.field-hint { display: block; width: 100%; margin-top: 6px; color: var(--sw-muted); font-size: 10px; line-height: 1.6; }
-.image-field { width: 100%; }
-.auto-empty { color: var(--sw-muted); font-size: 11px; }
-.code-input :deep(textarea) { font-family: Consolas, monospace; font-size: 12px; }
-.config-section + .config-section { margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--sw-border); }
-.section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; color: var(--sw-text); font-size: 13px; font-weight: 600; }
-.mapping-row { display: grid; align-items: center; gap: 9px; margin-bottom: 10px; }
-.mapping-row :deep(.n-input-number) { width: 100%; }
-.port-row { grid-template-columns: minmax(100px, 1fr) 16px minmax(100px, 1fr) 100px 32px; }
-.volume-row { grid-template-columns: minmax(130px, 1fr) 16px minmax(130px, 1fr) 76px 32px; }
-.mapping-arrow { color: var(--sw-muted); }
-.readonly-toggle { display: flex; align-items: center; gap: 6px; color: var(--sw-text-secondary); font-size: 11px; }
-.runtime-grid { margin-top: 5px; }
-.runtime-option { display: flex; align-items: center; justify-content: space-between; min-height: 68px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface-soft); color: var(--sw-text); font-size: 13px; }
-.runtime-option strong { display: block; font-weight: 500; }
-.runtime-option small { display: block; margin-top: 5px; color: var(--sw-muted); font-size: 11px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.form-grid {
+  display: grid;
+  align-items: start;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.field-hint {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  color: var(--sw-muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.image-field {
+  width: 100%;
+}
+.auto-empty {
+  color: var(--sw-muted);
+  font-size: 11px;
+}
+.code-input :deep(textarea) {
+  font-family: Consolas, monospace;
+  font-size: 12px;
+}
+.config-section + .config-section {
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid var(--sw-border);
+}
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  color: var(--sw-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.mapping-row {
+  display: grid;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+}
+.mapping-row :deep(.n-input-number) {
+  width: 100%;
+}
+.port-row {
+  grid-template-columns: minmax(100px, 1fr) 16px minmax(100px, 1fr) 100px 32px;
+}
+.volume-row {
+  grid-template-columns: minmax(130px, 1fr) 16px minmax(130px, 1fr) 76px 32px;
+}
+.mapping-arrow {
+  color: var(--sw-muted);
+}
+.readonly-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sw-text-secondary);
+  font-size: 11px;
+}
+.runtime-grid {
+  margin-top: 5px;
+}
+.runtime-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 68px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--sw-border);
+  border-radius: 8px;
+  background: var(--sw-surface-soft);
+  color: var(--sw-text);
+  font-size: 13px;
+}
+.runtime-option strong {
+  display: block;
+  font-weight: 500;
+}
+.runtime-option small {
+  display: block;
+  margin-top: 5px;
+  color: var(--sw-muted);
+  font-size: 11px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
 @media (max-width: 760px) {
-  .form-grid { grid-template-columns: 1fr; gap: 0; }
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
 }
 </style>

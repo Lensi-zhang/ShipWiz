@@ -1,14 +1,28 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { ApiResponse, UpdateInfo } from "../types";
 
-/**
- * 检查 GitHub Release 最新版本。
- * 有更新返回版本信息，已是最新返回 null；网络异常时抛出错误，由调用方决定是否提示。
- */
-export async function checkUpdate(): Promise<UpdateInfo | null> {
-  const response = await invoke<ApiResponse<UpdateInfo>>("check_update");
-  if (response.code !== 0) {
-    throw new Error(response.msg);
-  }
-  return response.data;
+async function updateCommand<T>(
+  name: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  const response = await invoke<ApiResponse<T>>(name, args);
+  if (response.code !== 0) throw new Error(response.msg);
+  return response.data as T;
+}
+
+/** 自动检查可使用 24 小时缓存；手动检查传入 true 强制联网并绕过跳过版本。 */
+export function checkUpdate(force = false): Promise<UpdateInfo | null> {
+  return updateCommand<UpdateInfo | null>("check_update", { force });
+}
+
+export function skipUpdate(version: string): Promise<null> {
+  return updateCommand<null>("skip_update", { version });
+}
+
+export function clearSkippedUpdate(): Promise<null> {
+  return updateCommand<null>("clear_skipped_update");
+}
+
+export function getSkippedUpdate(): Promise<string | null> {
+  return updateCommand<string | null>("get_skipped_update");
 }

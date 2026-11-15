@@ -11,8 +11,18 @@ export const imageApi = {
   list: (nodeId: string) => command<ImageInfo[]>("list_images", { nodeId }),
   search: (nodeId: string, term: string) =>
     command<ImageSearchResult[]>("search_images", { nodeId, term }),
-  pull: (nodeId: string, reference: string, registryId: string | null) =>
-    command<ImageOperationResult>("pull_image", { nodeId, reference, registryId }),
+  pull: (
+    nodeId: string,
+    reference: string,
+    registryId: string | null,
+    operationId: string,
+  ) =>
+    command<ImageOperationResult>("pull_image", {
+      nodeId,
+      reference,
+      registryId,
+      operationId,
+    }),
   remove: (nodeId: string, imageId: string, force = false) =>
     command<boolean>("remove_image", { nodeId, imageId, force }),
   exportImage: (nodeId: string, reference: string, destination: string) =>
@@ -22,7 +32,8 @@ export const imageApi = {
   registries: () => command<RegistrySource[]>("list_registries"),
   saveRegistry: (input: RegistryInput, id: string | null) =>
     command<RegistrySource[]>("save_registry", { input, id }),
-  removeRegistry: (id: string) => command<RegistrySource[]>("remove_registry", { id }),
+  removeRegistry: (id: string) =>
+    command<RegistrySource[]>("remove_registry", { id }),
   setDefaultRegistry: (id: string) =>
     command<RegistrySource[]>("set_default_registry", { id }),
 };

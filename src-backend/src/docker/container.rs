@@ -148,13 +148,11 @@ fn apply_stats(container: &mut ContainerInfo, stats: ContainerStatsResponse) {
     let cpu_delta = cpu_usage
         .total_usage
         .unwrap_or(0)
-        .checked_sub(previous_cpu_usage.total_usage.unwrap_or(0))
-        .unwrap_or(0);
+        .saturating_sub(previous_cpu_usage.total_usage.unwrap_or(0));
     let system_delta = cpu_stats
         .system_cpu_usage
         .unwrap_or(0)
-        .checked_sub(previous_cpu_stats.system_cpu_usage.unwrap_or(0))
-        .unwrap_or(0);
+        .saturating_sub(previous_cpu_stats.system_cpu_usage.unwrap_or(0));
     let cpus = cpu_stats
         .online_cpus
         .filter(|cpus| *cpus > 0)

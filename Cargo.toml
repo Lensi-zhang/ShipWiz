@@ -1,6 +1,6 @@
 [package]
 name = "shipwiz"
-version = "0.2.3"
+version = "0.2.4"
 description = "Lightweight nautical Docker desktop client"
 edition = "2021"
 rust-version = "1.77.2"
@@ -9,7 +9,12 @@ build = "src-backend/build.rs"
 
 [features]
 default = ["desktop"]
-desktop = ["dep:tauri", "dep:tauri-plugin-dialog"]
+desktop = [
+    "dep:tauri",
+    "dep:tauri-plugin-dialog",
+    "dep:tauri-plugin-process",
+    "dep:tauri-plugin-updater",
+]
 
 [lib]
 name = "shipwiz_lib"
@@ -21,6 +26,8 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [], optional = true }
 tauri-plugin-dialog = { version = "2", optional = true }
+tauri-plugin-process = { version = "2", optional = true }
+tauri-plugin-updater = { version = "2", optional = true }
 crossterm = "0.28"
 ratatui = "0.29"
 serde = { version = "1", features = ["derive"] }

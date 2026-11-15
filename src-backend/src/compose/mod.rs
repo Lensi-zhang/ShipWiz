@@ -318,7 +318,12 @@ fn docker_clis() -> Vec<DockerCli> {
 
     #[cfg(not(windows))]
     {
-        for dir in ["/usr/local/bin", "/usr/bin", "/snap/bin", "/opt/homebrew/bin"] {
+        for dir in [
+            "/usr/local/bin",
+            "/usr/bin",
+            "/snap/bin",
+            "/opt/homebrew/bin",
+        ] {
             push_cli(&mut clis, PathBuf::from(dir).join("docker"), false);
             push_cli(&mut clis, PathBuf::from(dir).join("docker-compose"), true);
         }
@@ -382,10 +387,7 @@ fn build_compose_command(
         }
         NodeConnection::Tls => {
             command
-                .env(
-                    "DOCKER_HOST",
-                    format!("tcp://{}:{}", node.host, node.port),
-                )
+                .env("DOCKER_HOST", format!("tcp://{}:{}", node.host, node.port))
                 .env("DOCKER_TLS_VERIFY", "1")
                 .env("DOCKER_CERT_PATH", cert_path.unwrap_or_default())
                 .env_remove("DOCKER_CONTEXT");
@@ -509,7 +511,7 @@ pub(crate) fn validate_yaml(yaml: &str) -> Result<Vec<String>, AppError> {
         .as_mapping()
         .ok_or_else(|| AppError::input("编队指令顶层必须是 YAML 对象。"))?;
     let services = root
-        .get(&Value::String("services".to_string()))
+        .get(Value::String("services".to_string()))
         .and_then(Value::as_mapping)
         .ok_or_else(|| AppError::input("编队指令必须包含 services 服务表。"))?;
     if services.is_empty() {
@@ -569,7 +571,7 @@ fn node_by_id(node_id: &str) -> Result<ShipNode, AppError> {
 pub async fn list_compose_projects() -> ApiResponse<Vec<ComposeProject>> {
     respond((|| {
         let mut projects = load_projects()?;
-        projects.sort_by(|left, right| right.updated_time.cmp(&left.updated_time));
+        projects.sort_by_key(|project| std::cmp::Reverse(project.updated_time));
         Ok(projects)
     })())
 }

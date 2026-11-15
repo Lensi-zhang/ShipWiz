@@ -16,18 +16,13 @@ pub enum NodeType {
     Remote,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum NodeConnection {
     Local,
+    #[default]
     Tls,
     Ssh,
-}
-
-impl Default for NodeConnection {
-    fn default() -> Self {
-        Self::Tls
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

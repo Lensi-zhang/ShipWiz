@@ -1,6 +1,9 @@
 use crate::config;
-use crate::error::{respond, ApiResponse, AppError};
+use crate::error::AppError;
+#[cfg(feature = "desktop")]
+use crate::error::{respond, ApiResponse};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "desktop")]
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,6 +18,7 @@ pub struct ComposeTemplate {
     pub built_in: bool,
 }
 
+#[cfg(feature = "desktop")]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ComposeTemplateInput {
@@ -26,15 +30,19 @@ pub struct ComposeTemplateInput {
     pub yaml: String,
 }
 
-#[tauri::command]
-pub async fn list_compose_templates() -> ApiResponse<Vec<ComposeTemplate>> {
-    respond((|| {
-        let mut templates = built_in_templates();
-        templates.extend(load_custom_templates()?);
-        Ok(templates)
-    })())
+pub(crate) fn list() -> Result<Vec<ComposeTemplate>, AppError> {
+    let mut templates = built_in_templates();
+    templates.extend(load_custom_templates()?);
+    Ok(templates)
 }
 
+#[cfg(feature = "desktop")]
+#[tauri::command]
+pub async fn list_compose_templates() -> ApiResponse<Vec<ComposeTemplate>> {
+    respond(list())
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub async fn save_compose_template(
     input: ComposeTemplateInput,
@@ -79,6 +87,7 @@ pub async fn save_compose_template(
     })())
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub async fn remove_compose_template(id: String) -> ApiResponse<Vec<ComposeTemplate>> {
     respond((|| {
@@ -102,6 +111,7 @@ fn load_custom_templates() -> Result<Vec<ComposeTemplate>, AppError> {
     Ok(config::read_config_key::<Vec<ComposeTemplate>>("composeTemplates")?.unwrap_or_default())
 }
 
+#[cfg(feature = "desktop")]
 fn write_custom_templates(templates: &[ComposeTemplate]) -> Result<(), AppError> {
     config::write_config_key("composeTemplates", templates)
 }
@@ -164,4 +174,27 @@ volumes:
             built_in: true,
         },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn built_in_templates_are_unique_valid_compose_files() {
+        let templates = built_in_templates();
+        let ids: HashSet<_> = templates
+            .iter()
+            .map(|template| template.id.as_str())
+            .collect();
+        assert_eq!(templates.len(), 3);
+        assert_eq!(ids.len(), templates.len());
+        for template in templates {
+            assert!(template.built_in);
+            assert!(!crate::compose::validate_yaml(&template.yaml)
+                .unwrap()
+                .is_empty());
+        }
+    }
 }

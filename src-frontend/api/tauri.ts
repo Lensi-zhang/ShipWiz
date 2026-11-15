@@ -3,8 +3,10 @@ import { alertError } from "../utils/message";
 import { dict } from "../dict";
 import type { ApiResponse } from "../types";
 
-
-export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
+export async function command<T>(
+  name: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
   try {
     const response = await invoke<ApiResponse<T>>(name, args);
     if (response.code !== 0) {

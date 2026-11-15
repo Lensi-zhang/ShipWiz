@@ -130,6 +130,18 @@ export interface ImageOperationResult {
   output: string;
 }
 
+export interface ImagePullProgress {
+  layerId: string;
+  status: string;
+  current: number | null;
+  total: number | null;
+}
+
+export interface ImagePullProgressEvent {
+  operationId: string;
+  progress: ImagePullProgress;
+}
+
 export interface RegistrySource {
   id: string;
   name: string;

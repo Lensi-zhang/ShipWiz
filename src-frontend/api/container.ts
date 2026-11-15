@@ -7,7 +7,8 @@ import type {
 } from "../types";
 
 export const containerApi = {
-  list: (nodeId: string) => command<ContainerInfo[]>("list_containers", { nodeId }),
+  list: (nodeId: string) =>
+    command<ContainerInfo[]>("list_containers", { nodeId }),
   create: (nodeId: string, input: CreateContainerInput) =>
     command<string>("create_container", { nodeId, input }),
   start: (nodeId: string, containerId: string) =>
@@ -21,6 +22,10 @@ export const containerApi = {
   logs: (nodeId: string, containerId: string, tail: number) =>
     command<string>("get_container_logs", { nodeId, containerId, tail }),
   exec: (nodeId: string, containerId: string, execCommand: string) =>
-    command<ExecResult>("exec_container", { nodeId, containerId, command: execCommand }),
+    command<ExecResult>("exec_container", {
+      nodeId,
+      containerId,
+      command: execCommand,
+    }),
   overview: () => command<FleetOverview>("get_fleet_overview"),
 };

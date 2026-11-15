@@ -1,10 +1,18 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
-import { anchorSuccess, departSuccess, launchSuccess, steerSuccess } from "../utils/message";
+import {
+  anchorSuccess,
+  departSuccess,
+  launchSuccess,
+  steerSuccess,
+} from "../utils/message";
 import { composeApi } from "../api/compose";
 import { dict } from "../dict";
-import type { ComposeDeployment, ComposeProject, ComposeTemplate } from "../types";
-
+import type {
+  ComposeDeployment,
+  ComposeProject,
+  ComposeTemplate,
+} from "../types";
 
 export const useComposeStore = defineStore("compose", () => {
   const projects = ref<ComposeProject[]>([]);
@@ -26,7 +34,8 @@ export const useComposeStore = defineStore("compose", () => {
       ]);
       projects.value = projectList;
       templates.value = templateList;
-      if (!currentId.value && projectList.length) currentId.value = projectList[0].id;
+      if (!currentId.value && projectList.length)
+        currentId.value = projectList[0].id;
       return true;
     } catch {
       return false;
@@ -47,7 +56,12 @@ export const useComposeStore = defineStore("compose", () => {
     }
   }
 
-  async function saveProject(name: string, yaml: string, id: string | null, quiet = false) {
+  async function saveProject(
+    name: string,
+    yaml: string,
+    id: string | null,
+    quiet = false,
+  ) {
     saving.value = true;
     try {
       const project = await composeApi.saveProject({ name, yaml }, id);
@@ -69,7 +83,8 @@ export const useComposeStore = defineStore("compose", () => {
     try {
       await composeApi.removeProject(id);
       projects.value = projects.value.filter((project) => project.id !== id);
-      if (currentId.value === id) currentId.value = projects.value[0]?.id ?? null;
+      if (currentId.value === id)
+        currentId.value = projects.value[0]?.id ?? null;
       departSuccess(dict.compose.messages.removed);
       return true;
     } catch {
@@ -117,7 +132,12 @@ export const useComposeStore = defineStore("compose", () => {
     }
   }
 
-  async function saveTemplate(input: { title: string; desc: string; tag: string[]; yaml: string }) {
+  async function saveTemplate(input: {
+    title: string;
+    desc: string;
+    tag: string[];
+    yaml: string;
+  }) {
     saving.value = true;
     try {
       templates.value = await composeApi.saveTemplate(input, null);

@@ -276,6 +276,7 @@ fn draw_sea(canvas: &mut Canvas, t: f64, horizon: i32, water_y: i32, front: bool
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_ship(
     canvas: &mut Canvas,
     x: i32,
@@ -308,7 +309,7 @@ fn draw_ship(
     }
     // 烟囱黑烟（先画，藏在船体之后）
     for i in 0..4i32 {
-        let life = ((t * 0.0009 + i as f64 * 0.27) % 1.0) as f64;
+        let life = (t * 0.0009 + i as f64 * 0.27) % 1.0;
         let sx = x + 34 - (life * 6.0) as i32;
         let sy = y - 2 - (life * 3.5) as i32;
         canvas.put(
