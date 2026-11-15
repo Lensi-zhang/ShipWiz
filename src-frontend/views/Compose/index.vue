@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import {
-  createDiscreteApi,
   NButton,
   NEmpty,
   NIcon,
@@ -16,6 +15,7 @@ import {
   NTag,
   NTooltip,
 } from "naive-ui";
+import { hoistSuccess, message, steerSuccess } from "../../utils/message";
 import {
   BookOpen,
   CheckCircle2,
@@ -41,7 +41,6 @@ import type { ComposeProject, ComposeTemplate } from "../../types";
 
 const fleet = useFleetStore();
 const compose = useComposeStore();
-const { message } = createDiscreteApi(["message"]);
 const ready = ref(false);
 const projectName = ref("new-fleet");
 const yaml = ref("");
@@ -144,7 +143,7 @@ async function validateCurrent() {
   const result = await compose.validate(yaml.value);
   if (result) {
     validatedServices.value = result.services;
-    message.success(dict.compose.validationSuccess);
+    steerSuccess(dict.compose.validationSuccess);
   }
 }
 async function startCurrent() {
@@ -197,7 +196,7 @@ function loadTemplate(template: ComposeTemplate) {
   yaml.value = template.yaml;
   validatedServices.value = [];
   compose.lastOutput = "";
-  message.success(dict.compose.messages.templateLoaded);
+  hoistSuccess(dict.compose.messages.templateLoaded);
 }
 async function openLogs(project: string) {
   logsProject.value = project;
@@ -221,7 +220,7 @@ async function loadLogs() {
 <template>
   <section class="compose-page page page-enter">
     <header class="page-header">
-      <div>
+      <div class="page-heading">
         <span class="eyebrow">{{ dict.compose.eyebrow }}</span>
         <h1>{{ dict.compose.title }}</h1>
         <p>{{ dict.compose.description }}</p>
@@ -434,7 +433,7 @@ async function loadLogs() {
       </n-tabs>
     </div>
 
-    <n-modal v-model:show="templateVisible" preset="card" :title="dict.compose.templateModal.title" class="template-modal">
+    <n-modal v-model:show="templateVisible" preset="card" :title="dict.compose.templateModal.title" class="form-modal template-modal">
       <div class="template-form">
         <label>{{ dict.compose.templateModal.name }}<n-input v-model:value="templateForm.title" :placeholder="dict.compose.templateModal.namePlaceholder" /></label>
         <label>{{ dict.compose.templateModal.description }}<n-input v-model:value="templateForm.desc" type="textarea" :rows="3" :placeholder="dict.compose.templateModal.descriptionPlaceholder" /></label>
@@ -460,7 +459,6 @@ async function loadLogs() {
 </template>
 
 <style scoped>
-.header-actions { display: flex; gap: 10px; margin-top: 10px; }
 .current-ship-strip { display: flex; align-items: center; gap: 13px; min-height: 64px; padding: 10px 16px; margin-bottom: 18px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); }
 .ship-emblem { display: grid; place-items: center; width: 38px; height: 38px; color: var(--sw-terminal-text); border-radius: 8px; background: var(--sw-primary); }
 .ship-copy { display: flex; flex-direction: column; min-width: 120px; }
@@ -532,7 +530,6 @@ async function loadLogs() {
 .tail-select { width: 95px; }
 .compose-logs { overflow: auto; height: 480px; padding: 16px; margin: 0; color: var(--sw-terminal-text); border-radius: 8px; background: var(--sw-terminal-bg); font: 11px/1.7 Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
 .logs-empty { height: 420px; justify-content: center; }
-:deep(.template-modal) { width: 540px; }
 :deep(.logs-modal) { width: min(820px, calc(100vw - 48px)); }
 @media (max-width: 1180px) {
   .compose-workspace { grid-template-columns: 220px minmax(0, 1fr); }

@@ -96,15 +96,15 @@ onBeforeUnmount(() => { sequence += 1; if (timer) clearInterval(timer); });
 
 <template>
   <div class="page monitor-page">
-    <div class="monitor-heading">
+    <header class="page-header">
       <div class="page-heading"><span class="eyebrow">LIVE ENGINE TELEMETRY</span><h1>动力监控台</h1><p>观察当前舰船的实时负载、储物占用与异常信号。</p></div>
-      <n-button secondary :loading="loading" @click="load"><template #icon><n-icon :component="RefreshCw" /></template>刷新数据</n-button>
-    </div>
+      <div class="header-actions"><n-button secondary :loading="loading" @click="load"><template #icon><n-icon :component="RefreshCw" /></template>刷新数据</n-button></div>
+    </header>
     <div class="current-ship-bar"><span class="status-light" :class="fleet.currentNode?.status || 'offline'" /><span class="ship-label">当前舰船</span><strong>{{ fleet.currentNode?.name || "尚未选择" }}</strong><span v-if="lastUpdated" class="update-time"><Clock3 :size="12" />{{ lastUpdated }} 更新 · 每 5 秒采样</span></div>
 
     <div v-if="failed" class="monitor-error" role="alert"><AlertTriangle :size="18" /><div><strong>暂时无法取得动力数据</strong><p>请检查舰船连接；监控不可用不会被记作零负载。</p></div><n-button size="small" @click="load">重新连接</n-button></div>
     <template v-else>
-      <div class="monitor-stats">
+      <div class="monitor-stats stats-grid stats-grid--four">
         <article><span class="metric-icon blue"><Cpu :size="19" /></span><div><span>平均处理器负载</span><strong>{{ averageCpu.toFixed(1) }}<small>%</small></strong><p>{{ running.length }} 个航行服务参与采样</p></div></article>
         <article><span class="metric-icon green"><MemoryStick :size="19" /></span><div><span>运行内存合计</span><strong>{{ formatBytes(memoryUsed) }}</strong><p>仅统计航行中的集装箱</p></div></article>
         <article><span class="metric-icon blue"><Activity :size="19" /></span><div><span>服务运行状态</span><strong>{{ running.length }}<small> / {{ containers.length }}</small></strong><p>航行中 / 全部集装箱</p></div></article>
@@ -146,12 +146,9 @@ onBeforeUnmount(() => { sequence += 1; if (timer) clearInterval(timer); });
 </template>
 
 <style scoped>
-.monitor-heading { display: flex; align-items: flex-start; justify-content: space-between; }
-.monitor-heading .n-button { margin-top: 10px; }
 .update-time { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; color: var(--sw-muted); }
 .monitor-error { display: flex; align-items: center; gap: 14px; padding: 20px; color: var(--sw-warning); border: 1px solid var(--sw-warning); border-radius: 8px; background: var(--sw-warning-soft); }
 .monitor-error > div { flex: 1; }.monitor-error strong { color: var(--sw-text); }.monitor-error p { margin: 4px 0 0; color: var(--sw-text-secondary); font-size: 11px; }
-.monitor-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
 .monitor-stats article { display: flex; gap: 13px; min-width: 0; padding: 16px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); }
 .monitor-stats article.warning { border-color: var(--sw-warning); }
 .metric-icon { display: grid; place-items: center; flex: 0 0 auto; width: 38px; height: 38px; border-radius: 8px; }.metric-icon.blue { color: var(--sw-primary); background: var(--sw-primary-soft); }.metric-icon.green { color: var(--sw-success); background: var(--sw-success-soft); }.metric-icon.orange { color: var(--sw-warning); background: var(--sw-warning-soft); }
@@ -165,5 +162,6 @@ onBeforeUnmount(() => { sequence += 1; if (timer) clearInterval(timer); });
 .storage-panel { min-width: 0; }.storage-ring { display: grid; place-items: center; width: 142px; height: 142px; margin: 4px auto 17px; border-radius: 50%; background: conic-gradient(var(--sw-primary) var(--ratio), var(--sw-border) 0); }.storage-ring::before { content: ""; grid-area: 1 / 1; width: 108px; height: 108px; border-radius: 50%; background: var(--sw-surface); }.storage-ring > div { z-index: 1; grid-area: 1 / 1; text-align: center; }.storage-ring strong { display: block; font-family: "Bahnschrift", sans-serif; font-size: 27px; }.storage-ring span { color: var(--sw-muted); font-size: 10px; }
 .storage-numbers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }.storage-numbers > div { padding: 9px; border-radius: 6px; background: var(--sw-surface-soft); }.storage-numbers span { display: block; color: var(--sw-muted); font-size: 9px; }.storage-numbers strong { display: block; margin-top: 4px; font-size: 12px; }
 .ranking-list { display: flex; flex-direction: column; }.ranking-row { display: grid; grid-template-columns: 30px minmax(160px, 1fr) 70px minmax(150px, .7fr) 80px; align-items: center; gap: 14px; min-height: 54px; border-top: 1px solid var(--sw-border); }.rank { color: var(--sw-muted); font-family: "Bahnschrift", sans-serif; font-size: 11px; }.rank-name { min-width: 0; }.rank-name strong, .rank-name span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.rank-name strong { font-size: 12px; }.rank-name span { margin-top: 3px; color: var(--sw-muted); font-size: 9px; }.resource-bar > span { display: block; margin-bottom: 5px; color: var(--sw-text-secondary); font-size: 9px; }.memory-value { color: var(--sw-text-secondary); font-size: 11px; text-align: right; }
-@media (max-width: 1200px) { .monitor-stats { grid-template-columns: repeat(2, 1fr); }.monitor-grid { grid-template-columns: 1fr; }.ranking-row { grid-template-columns: 26px minmax(140px, 1fr) 65px 140px; }.memory-value { display: none; } }
+@media (max-width: 1200px) { .monitor-grid { grid-template-columns: 1fr; }.ranking-row { grid-template-columns: 26px minmax(140px, 1fr) 65px 140px; }.memory-value { display: none; } }
+@media (max-width: 900px) { .update-time { width: 100%; margin-left: 0; }.monitor-error { align-items: flex-start; flex-wrap: wrap; } }
 </style>

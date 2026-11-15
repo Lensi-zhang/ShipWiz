@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { NButton, NButtonGroup, NEmpty, NIcon, NPopconfirm, NSpin, NTag, createDiscreteApi } from "naive-ui";
+import { NButton, NButtonGroup, NEmpty, NIcon, NPopconfirm, NSpin, NTag } from "naive-ui";
+import { connectSuccess, departSuccess, steerSuccess } from "../../utils/message";
 import {
   Check,
   Grid3X3,
@@ -19,7 +20,6 @@ import { useFleetStore } from "../../store/fleet";
 import type { ShipNode } from "../../types";
 
 const fleet = useFleetStore();
-const { message } = createDiscreteApi(["message"]);
 const modalVisible = ref(false);
 const editingNode = ref<ShipNode | null>(null);
 const nodes = computed(() => fleet.state.nodes);
@@ -44,20 +44,20 @@ async function refresh() {
   await fleet.loadOverview();
 }
 function onSaved(mode: "create" | "edit") {
-  message.success(mode === "create" ? dict.fleet.created : dict.fleet.updated);
+  steerSuccess(mode === "create" ? dict.fleet.created : dict.fleet.updated);
   void fleet.loadOverview();
 }
 async function remove(id: string) {
   if (await fleet.remove(id)) {
-    message.success(dict.fleet.removed);
+    departSuccess(dict.fleet.removed);
     await fleet.loadOverview();
   }
 }
 async function setCurrent(id: string) {
-  if (await fleet.setCurrent(id)) message.success(dict.fleet.switched);
+  if (await fleet.setCurrent(id)) steerSuccess(dict.fleet.switched);
 }
 async function test(id: string) {
-  if (await fleet.test(id)) message.success(dict.fleet.connected);
+  if (await fleet.test(id)) connectSuccess(dict.fleet.connected);
   await fleet.loadOverview();
 }
 function connectionKind(node: ShipNode) {
@@ -84,19 +84,21 @@ function formatLastSuccess(value: number) {
 
 <template>
   <div class="page fleet-page">
-    <div class="fleet-heading">
+    <header class="page-header">
       <div class="page-heading">
         <span class="eyebrow">{{ dict.fleet.eyebrow }}</span>
         <h1>{{ dict.fleet.title }}</h1>
         <p>{{ dict.fleet.description }}</p>
       </div>
-      <n-button type="primary" size="large" @click="openCreate">
-        <template #icon><n-icon><Plus /></n-icon></template>
-        {{ dict.common.add }}
-      </n-button>
-    </div>
+      <div class="header-actions">
+        <n-button type="primary" size="large" @click="openCreate">
+          <template #icon><n-icon><Plus /></n-icon></template>
+          {{ dict.common.add }}
+        </n-button>
+      </div>
+    </header>
 
-    <div class="stats-grid">
+    <div class="stats-grid stats-grid--five">
       <div class="stat-card">
         <span>{{ dict.fleet.total }}</span><strong>{{ nodes.length }}</strong>
       </div>
@@ -256,18 +258,14 @@ function formatLastSuccess(value: number) {
 </template>
 
 <style scoped>
-.fleet-heading { display: flex; align-items: flex-start; justify-content: space-between; }
-.fleet-heading .n-button { margin-top: 13px; }
-.stats-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
 .overview-warning { margin: 0 0 22px; color: var(--sw-warning); font-size: 11px; }
-.stat-card { position: relative; min-height: 102px; padding: 16px; overflow: hidden; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); }
+.stat-card { position: relative; padding: 16px; overflow: hidden; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); }
 .stat-card::after { content: ""; position: absolute; right: -20px; bottom: -38px; width: 90px; height: 90px; border: 1px solid var(--sw-border); border-radius: 50%; }
 .stat-card span { display: block; color: var(--sw-text-secondary); font-size: 12px; }
 .stat-card strong { display: inline-block; margin-top: 7px; color: var(--sw-text); font-family: Georgia, serif; font-size: 31px; font-weight: 500; line-height: 1; }
 .stat-card small { margin-left: 10px; color: var(--sw-muted); font-size: 9px; letter-spacing: 1.5px; }
 .stat-card.accent { border-color: var(--sw-primary); background: var(--sw-primary-soft); }
 .stat-card.accent strong { color: var(--sw-primary); }
-.list-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; }
 .list-toolbar > span { color: var(--sw-text-secondary); font-size: 12px; font-weight: 600; }
 .ship-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px; }
 .ship-card { position: relative; padding: 16px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); transition: border-color 300ms, box-shadow 300ms, transform 300ms; }
@@ -293,7 +291,6 @@ function formatLastSuccess(value: number) {
 .empty-fleet { display: flex; min-height: 300px; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--sw-border-strong); border-radius: 8px; background: var(--sw-surface); }
 .empty-fleet h3 { order: -1; margin: 0 0 4px; color: var(--sw-text); font-size: 16px; }
 @media (max-width: 1150px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .ship-grid { grid-template-columns: 1fr; }
 }
 </style>

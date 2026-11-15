@@ -1,11 +1,10 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
-import { createDiscreteApi } from "naive-ui";
+import { anchorSuccess, departSuccess, hoistSuccess, launchSuccess, restartSuccess } from "../utils/message";
 import { containerApi } from "../api/container";
 import { dict } from "../dict";
 import type { ContainerInfo, CreateContainerInput } from "../types";
 
-const { message } = createDiscreteApi(["message"]);
 
 export type ContainerAction = "start" | "stop" | "restart" | "remove";
 
@@ -40,7 +39,7 @@ export const useContainerStore = defineStore("container", () => {
   async function create(nodeId: string, input: CreateContainerInput) {
     try {
       const id = await containerApi.create(nodeId, input);
-      message.success(dict.container.messages.created);
+      hoistSuccess(dict.container.messages.created);
       await load(nodeId, true);
       return id;
     } catch {
@@ -58,7 +57,10 @@ export const useContainerStore = defineStore("container", () => {
         restart: dict.container.messages.restarted,
         remove: dict.container.messages.removed,
       };
-      message.success(messages[action]);
+      if (action === "start") launchSuccess(messages[action]);
+      else if (action === "stop") anchorSuccess(messages[action]);
+      else if (action === "restart") restartSuccess(messages[action]);
+      else departSuccess(messages[action]);
       await load(nodeId, true);
       return true;
     } catch {

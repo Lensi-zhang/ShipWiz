@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import {
   NConfigProvider,
@@ -25,6 +25,7 @@ import {
 import { dict } from "./dict";
 import { useAppearanceStore } from "./store/appearance";
 import { useFleetStore } from "./store/fleet";
+import { syncMessageTheme } from "./utils/message";
 import OnboardingTour from "./components/OnboardingTour.vue";
 
 const route = useRoute();
@@ -59,6 +60,8 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => ({
   Input: { heightMedium: "32px" },
   DataTable: { thHeightMedium: "40px", tdHeightMedium: "40px" },
 }));
+
+watch(() => appearance.theme, syncMessageTheme, { immediate: true });
 
 onMounted(async () => {
   await fleet.load();

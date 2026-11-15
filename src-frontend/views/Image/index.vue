@@ -30,11 +30,12 @@ import {
   Trash2,
 } from "lucide-vue-next";
 import PullImageModal from "../../components/PullImageModal.vue";
+import ImagePullDetail from "../../components/ImagePullDetail.vue";
 import RegistryManager from "../../components/RegistryManager.vue";
 import { dict } from "../../dict";
 import { useFleetStore } from "../../store/fleet";
 import { useImageStore } from "../../store/image";
-import type { ImageInfo } from "../../types";
+import type { ImageInfo, ImageSearchResult } from "../../types";
 
 const fleet = useFleetStore();
 const images = useImageStore();
@@ -45,9 +46,31 @@ const onlineTerm = ref("");
 const searched = ref(false);
 const pullVisible = ref(false);
 const pullReference = ref("");
+const detailVisible = ref(false);
+const detailTarget = ref<ImageSearchResult | null>(null);
+const onlineFilter = ref<"all" | "official" | "community">("all");
+const hotKeywords = ["nginx", "mysql", "redis", "postgres", "node", "python", "rabbitmq", "grafana"];
+const marketFilters = computed(() => [
+  { label: dict.image.market.filters.all, value: "all" as const },
+  { label: dict.image.market.filters.official, value: "official" as const },
+  { label: dict.image.market.filters.community, value: "community" as const },
+]);
 const currentNodeId = computed(() => fleet.state.currentNodeId);
 const currentNode = computed(() => fleet.currentNode);
 const unusedCount = computed(() => Math.max(images.items.length - images.inUseCount, 0));
+const filteredResults = computed(() =>
+  images.searchResults
+    .filter((result) => {
+      if (onlineFilter.value === "official") return result.isOfficial;
+      if (onlineFilter.value === "community") return !result.isOfficial;
+      return true;
+    })
+    .slice()
+    .sort((left, right) => {
+      if (left.isOfficial !== right.isOfficial) return left.isOfficial ? -1 : 1;
+      return right.starCount - left.starCount;
+    }),
+);
 const filteredImages = computed(() => {
   const keyword = localSearch.value.trim().toLowerCase();
   if (!keyword) return images.items;
@@ -100,6 +123,18 @@ function openPull(reference = "") {
   pullReference.value = reference;
   pullVisible.value = true;
 }
+function formatStars(count: number) {
+  if (count >= 10000) return `${(count / 10000).toFixed(1)}w`;
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+  return String(count);
+}
+function openDetail(result: ImageSearchResult) {
+  detailTarget.value = result;
+  detailVisible.value = true;
+}
+function onPulled() {
+  activeTab.value = "local";
+}
 async function refresh() {
   if (currentNodeId.value) await images.load(currentNodeId.value);
 }
@@ -107,6 +142,11 @@ async function searchOnline() {
   if (!currentNodeId.value || !onlineTerm.value.trim()) return;
   searched.value = true;
   await images.search(currentNodeId.value, onlineTerm.value);
+}
+function searchKeyword(keyword: string) {
+  onlineTerm.value = keyword;
+  onlineFilter.value = "all";
+  void searchOnline();
 }
 async function importArchive() {
   if (!currentNodeId.value) return;
@@ -134,7 +174,7 @@ async function exportArchive(image: ImageInfo) {
 <template>
   <section class="image-page page page-enter">
     <header class="page-header">
-      <div>
+      <div class="page-heading">
         <span class="eyebrow">{{ dict.image.eyebrow }}</span>
         <h1>{{ dict.image.title }}</h1>
         <p>{{ dict.image.description }}</p>
@@ -166,7 +206,7 @@ async function exportArchive(image: ImageInfo) {
       </n-button>
     </div>
 
-    <div class="image-stats">
+    <div class="image-stats stats-grid stats-grid--four">
       <div class="metric-card">
         <span class="metric-icon teal"><Boxes :size="18" /></span>
         <div><span>{{ dict.image.total }}</span><strong>{{ images.items.length.toString().padStart(2, "0") }}</strong></div>
@@ -266,7 +306,7 @@ async function exportArchive(image: ImageInfo) {
         </n-tab-pane>
 
         <n-tab-pane name="online" :tab="dict.image.tabs.online">
-          <div class="online-search-box">
+          <div class="market-search">
             <div class="search-emblem"><Download :size="23" /></div>
             <n-input
               v-model:value="onlineTerm"
@@ -281,21 +321,66 @@ async function exportArchive(image: ImageInfo) {
               {{ images.searching ? dict.image.searching : dict.image.search }}
             </n-button>
           </div>
+
+          <div class="market-hot">
+            <span>{{ dict.image.market.hot }}</span>
+            <button
+              v-for="keyword in hotKeywords"
+              :key="keyword"
+              type="button"
+              class="market-chip"
+              :class="{ active: onlineTerm === keyword }"
+              @click="searchKeyword(keyword)"
+            >
+              {{ keyword }}
+            </button>
+          </div>
+
+          <div v-if="searched" class="market-filter-row">
+            <div class="market-filters">
+              <button
+                v-for="item in marketFilters"
+                :key="item.value"
+                type="button"
+                class="market-filter"
+                :class="{ active: onlineFilter === item.value }"
+                @click="onlineFilter = item.value"
+              >
+                {{ item.label }}
+              </button>
+            </div>
+            <span class="market-count">{{ filteredResults.length }} {{ dict.image.market.count }}</span>
+          </div>
+
           <n-spin :show="images.searching">
-            <div v-if="images.searchResults.length" class="search-results">
-              <article v-for="result in images.searchResults" :key="result.name" class="search-result-card">
-                <div class="result-icon"><PackageOpen :size="21" /></div>
-                <div class="result-copy">
-                  <div class="result-title">
+            <div v-if="filteredResults.length" class="market-grid">
+              <article
+                v-for="result in filteredResults"
+                :key="result.name"
+                class="market-card"
+                tabindex="0"
+                @click="openDetail(result)"
+                @keyup.enter="openDetail(result)"
+              >
+                <div class="market-card-head">
+                  <span class="market-icon"><PackageOpen :size="20" /></span>
+                  <div class="market-title">
                     <h3>{{ result.name }}</h3>
-                    <n-tag size="small" :bordered="false" :type="result.isOfficial ? 'success' : 'default'">
-                      {{ result.isOfficial ? dict.image.official : dict.image.community }}
-                    </n-tag>
+                    <div class="market-meta">
+                      <n-tag size="small" :bordered="false" :type="result.isOfficial ? 'success' : 'default'">
+                        {{ result.isOfficial ? dict.image.official : dict.image.community }}
+                      </n-tag>
+                      <span class="star-count"><Star :size="11" />{{ formatStars(result.starCount) }}</span>
+                    </div>
                   </div>
-                  <p>{{ result.description || dict.image.noDescription }}</p>
-                  <span class="star-count"><Star :size="12" />{{ result.starCount }} {{ dict.image.stars }}</span>
                 </div>
-                <n-button secondary type="primary" @click="openPull(result.name)">{{ dict.image.pull }}</n-button>
+                <p class="market-desc">{{ result.description || dict.image.noDescription }}</p>
+                <div class="market-card-foot">
+                  <span class="market-ref">latest</span>
+                  <n-button size="small" secondary type="primary" @click.stop="openDetail(result)">
+                    {{ dict.image.market.fetch }}
+                  </n-button>
+                </div>
               </article>
             </div>
             <n-empty v-else :description="searched ? dict.image.noResults : dict.image.searchHint" class="image-empty">
@@ -314,13 +399,19 @@ async function exportArchive(image: ImageInfo) {
       v-model:show="pullVisible"
       :node-id="currentNodeId ?? ''"
       :reference="pullReference"
-      @pulled="activeTab = 'local'"
+      @pulled="onPulled"
+    />
+
+    <ImagePullDetail
+      v-model:show="detailVisible"
+      :node-id="currentNodeId ?? ''"
+      :target="detailTarget"
+      @pulled="onPulled"
     />
   </section>
 </template>
 
 <style scoped>
-.header-actions { display: flex; gap: 10px; margin-top: 10px; }
 .current-ship-strip { display: flex; align-items: center; gap: 13px; min-height: 64px; padding: 10px 16px; margin-bottom: 18px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); }
 .ship-emblem { display: grid; place-items: center; width: 38px; height: 38px; color: var(--sw-terminal-text); border-radius: 8px; background: var(--sw-primary); }
 .ship-copy { display: flex; flex-direction: column; min-width: 120px; }
@@ -331,8 +422,7 @@ async function exportArchive(image: ImageInfo) {
 .connection-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--sw-muted); }
 .connection-state.online { color: var(--sw-success); }
 .connection-state.online i { background: var(--sw-success); box-shadow: 0 0 0 4px var(--sw-success-soft); }
-.image-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; margin-bottom: 18px; }
-.metric-card { display: flex; align-items: center; gap: 14px; min-height: 84px; padding: 16px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); }
+.metric-card { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); }
 .metric-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; }
 .metric-icon.teal { color: var(--sw-primary); background: var(--sw-primary-soft); }
 .metric-icon.green { color: var(--sw-success); background: var(--sw-success-soft); }
@@ -345,7 +435,6 @@ async function exportArchive(image: ImageInfo) {
 .image-panel { overflow: hidden; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); box-shadow: var(--sw-shadow); }
 .image-tabs { padding: 0 16px 16px; }
 .image-tabs :deep(.n-tabs-nav) { padding: 0 2px; }
-.list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 3px 0 16px; }
 .local-search { width: 320px; }
 .table-scroll { overflow-x: auto; margin: 0 -16px -16px; }
 .image-table { min-width: 920px; font-size: 11px; }
@@ -369,20 +458,39 @@ async function exportArchive(image: ImageInfo) {
 .row-actions { display: flex; gap: 2px; }
 .remove-hint { max-width: 260px; margin: 6px 0 0; line-height: 1.6; }
 .image-empty { min-height: 330px; justify-content: center; }
-.online-search-box { display: flex; align-items: center; gap: 11px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--sw-border); border-radius: 8px; background: linear-gradient(105deg, var(--sw-primary-soft), var(--sw-surface)); }
+.market-search { display: flex; align-items: center; gap: 11px; padding: 16px; margin-bottom: 14px; border: 1px solid var(--sw-border); border-radius: 8px; background: linear-gradient(105deg, var(--sw-primary-soft), var(--sw-surface)); }
 .search-emblem { display: grid; place-items: center; flex: 0 0 auto; width: 42px; height: 42px; color: var(--sw-terminal-text); border-radius: 8px; background: var(--sw-primary); }
-.search-results { display: grid; gap: 9px; }
-.search-result-card { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); transition: border-color 300ms, transform 300ms; }
-.search-result-card:hover { border-color: var(--sw-border-strong); transform: translateY(-1px); }
-.result-icon { display: grid; place-items: center; flex: 0 0 auto; width: 38px; height: 38px; color: var(--sw-primary); border-radius: 8px; background: var(--sw-primary-soft); }
-.result-copy { flex: 1; min-width: 0; }
-.result-title { display: flex; align-items: center; gap: 8px; }
-.result-title h3 { overflow: hidden; margin: 0; color: var(--sw-text); font-family: Consolas, monospace; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.result-copy p { overflow: hidden; margin: 5px 0; color: var(--sw-text-secondary); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.market-search :deep(.n-input) { flex: 1; }
+.market-hot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.market-hot > span { color: var(--sw-muted); font-size: 10px; }
+.market-chip { padding: 4px 10px; color: var(--sw-text-secondary); border: 1px solid var(--sw-border); border-radius: 99px; background: var(--sw-surface); font-family: Consolas, monospace; font-size: 10px; cursor: pointer; transition: color 200ms, border-color 200ms, background 200ms; }
+.market-chip:hover { color: var(--sw-primary); border-color: var(--sw-primary); }
+.market-chip.active { color: var(--sw-terminal-text); border-color: var(--sw-primary); background: var(--sw-primary); }
+.market-filter-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.market-filters { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface-soft); }
+.market-filter { padding: 5px 14px; color: var(--sw-muted); border: 0; border-radius: 6px; background: transparent; font-size: 11px; cursor: pointer; transition: color 200ms, background 200ms; }
+.market-filter:hover { color: var(--sw-text); }
+.market-filter.active { color: var(--sw-text); background: var(--sw-surface); box-shadow: 0 1px 3px rgb(0 0 0 / 8%); }
+.market-count { color: var(--sw-muted); font-size: 10px; }
+.market-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.market-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); cursor: pointer; transition: border-color 250ms, transform 250ms, box-shadow 250ms; }
+.market-card:hover, .market-card:focus-visible { border-color: var(--sw-primary); outline: none; transform: translateY(-2px); box-shadow: var(--sw-shadow); }
+.market-card-head { display: flex; align-items: flex-start; gap: 11px; }
+.market-icon { display: grid; place-items: center; flex: 0 0 auto; width: 40px; height: 40px; color: var(--sw-primary); border: 1px solid var(--sw-border); border-radius: 9px; background: var(--sw-primary-soft); }
+.market-title { flex: 1; min-width: 0; }
+.market-title h3 { overflow: hidden; margin: 1px 0 0; color: var(--sw-text); font-family: Consolas, monospace; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.market-meta { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.market-desc { display: -webkit-box; overflow: hidden; flex: 1; min-height: 34px; margin: 0; color: var(--sw-text-secondary); font-size: 10px; line-height: 1.7; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.market-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid var(--sw-border); }
+.market-ref { padding: 2px 8px; color: var(--sw-muted); border-radius: 4px; background: var(--sw-surface-soft); font-family: Consolas, monospace; font-size: 9px; }
 .star-count { display: flex; align-items: center; gap: 4px; color: var(--sw-warning); font-size: 9px; }
 @media (max-width: 1100px) {
-  .image-stats { grid-template-columns: repeat(2, 1fr); }
   .current-ship-strip > code { display: none; }
   .local-search { width: 240px; }
+}
+@media (max-width: 900px) {
+  .market-search { flex-wrap: wrap; }
+  .market-search :deep(.n-input) { flex: 1 1 100%; order: -1; }
+  .market-grid { grid-template-columns: 1fr; }
 }
 </style>

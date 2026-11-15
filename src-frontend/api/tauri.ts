@@ -1,9 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
-import { createDiscreteApi } from "naive-ui";
+import { message } from "../utils/message";
 import { dict } from "../dict";
 import type { ApiResponse } from "../types";
 
-const { message } = createDiscreteApi(["message"]);
 
 export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   try {

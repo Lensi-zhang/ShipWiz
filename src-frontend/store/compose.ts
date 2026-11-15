@@ -1,11 +1,10 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
-import { createDiscreteApi } from "naive-ui";
+import { anchorSuccess, departSuccess, launchSuccess, steerSuccess } from "../utils/message";
 import { composeApi } from "../api/compose";
 import { dict } from "../dict";
 import type { ComposeDeployment, ComposeProject, ComposeTemplate } from "../types";
 
-const { message } = createDiscreteApi(["message"]);
 
 export const useComposeStore = defineStore("compose", () => {
   const projects = ref<ComposeProject[]>([]);
@@ -56,7 +55,7 @@ export const useComposeStore = defineStore("compose", () => {
       if (index >= 0) projects.value[index] = project;
       else projects.value.unshift(project);
       currentId.value = project.id;
-      if (!quiet) message.success(dict.compose.messages.saved);
+      if (!quiet) steerSuccess(dict.compose.messages.saved);
       return project;
     } catch {
       return null;
@@ -71,7 +70,7 @@ export const useComposeStore = defineStore("compose", () => {
       await composeApi.removeProject(id);
       projects.value = projects.value.filter((project) => project.id !== id);
       if (currentId.value === id) currentId.value = projects.value[0]?.id ?? null;
-      message.success(dict.compose.messages.removed);
+      departSuccess(dict.compose.messages.removed);
       return true;
     } catch {
       return false;
@@ -93,7 +92,7 @@ export const useComposeStore = defineStore("compose", () => {
     try {
       const result = await composeApi.up(nodeId, projectId);
       lastOutput.value = result.output;
-      message.success(dict.compose.messages.started);
+      launchSuccess(dict.compose.messages.started);
       await loadDeployments(nodeId);
       return true;
     } catch {
@@ -108,7 +107,7 @@ export const useComposeStore = defineStore("compose", () => {
     try {
       const result = await composeApi.down(nodeId, projectId);
       lastOutput.value = result.output;
-      message.success(dict.compose.messages.stopped);
+      anchorSuccess(dict.compose.messages.stopped);
       await loadDeployments(nodeId);
       return true;
     } catch {
@@ -122,7 +121,7 @@ export const useComposeStore = defineStore("compose", () => {
     saving.value = true;
     try {
       templates.value = await composeApi.saveTemplate(input, null);
-      message.success(dict.compose.messages.templateSaved);
+      steerSuccess(dict.compose.messages.templateSaved);
       return true;
     } catch {
       return false;
@@ -135,7 +134,7 @@ export const useComposeStore = defineStore("compose", () => {
     saving.value = true;
     try {
       templates.value = await composeApi.removeTemplate(id);
-      message.success(dict.compose.messages.templateRemoved);
+      departSuccess(dict.compose.messages.templateRemoved);
       return true;
     } catch {
       return false;

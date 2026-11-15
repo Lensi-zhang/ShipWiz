@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import {
+  NAutoComplete,
   NButton,
   NForm,
   NFormItem,
@@ -18,6 +19,7 @@ import {
 import { ArrowRight, Plus, Trash2 } from "lucide-vue-next";
 import { dict } from "../dict";
 import { useContainerStore } from "../store/container";
+import { useImageStore } from "../store/image";
 import type { CreateContainerInput } from "../types";
 
 interface CreateFormModel extends Omit<CreateContainerInput, "env"> {
@@ -30,6 +32,7 @@ const emit = defineEmits<{
   created: [];
 }>();
 const containers = useContainerStore();
+const images = useImageStore();
 const formRef = ref<FormInst | null>(null);
 const creating = ref(false);
 const activeTab = ref("basic");
@@ -67,6 +70,21 @@ const protocolOptions = [
 const restartOptions = computed(() =>
   Object.entries(text.restartOptions).map(([value, label]) => ({ value, label })),
 );
+const imageOptions = computed(() => {
+  const keyword = (model.value.image ?? "").trim().toLowerCase();
+  const references = new Set<string>();
+  for (const image of images.items) {
+    for (const reference of image.repoTags) {
+      if (reference === "<none>:<none>") continue;
+      if (keyword && !reference.toLowerCase().includes(keyword)) continue;
+      references.add(reference);
+    }
+  }
+  return Array.from(references)
+    .sort()
+    .slice(0, 12)
+    .map((reference) => ({ label: reference, value: reference }));
+});
 
 watch(
   () => props.show,
@@ -75,6 +93,7 @@ watch(
     model.value = emptyForm();
     activeTab.value = "basic";
     formRef.value?.restoreValidation();
+    if (props.nodeId) void images.load(props.nodeId);
   },
 );
 
@@ -99,7 +118,7 @@ async function submit() {
   creating.value = true;
   const input: CreateContainerInput = {
     name: model.value.name.trim(),
-    image: model.value.image.trim(),
+    image: (model.value.image ?? "").trim(),
     command: model.value.command.trim(),
     env: model.value.envText
       .split(/\r?\n/)
@@ -129,7 +148,7 @@ async function submit() {
   <n-modal
     v-model:show="visible"
     preset="card"
-    class="create-container-modal"
+    class="form-modal form-modal--wide create-container-modal"
     :title="text.title"
     :mask-closable="!creating"
   >
@@ -147,7 +166,23 @@ async function submit() {
               <n-input v-model:value="model.name" :placeholder="text.namePlaceholder" maxlength="63" />
             </n-form-item>
             <n-form-item :label="text.image" path="image">
-              <n-input v-model:value="model.image" :placeholder="text.imagePlaceholder" />
+              <div class="image-field">
+                <n-auto-complete
+                  v-model:value="model.image"
+                  :options="imageOptions"
+                  :placeholder="text.imagePlaceholder"
+                  :loading="images.loading"
+                  show-empty
+                  clearable
+                >
+                  <template #empty>
+                    <span class="auto-empty">
+                      {{ images.items.length ? text.imageEmpty : text.imageEmptyLibrary }}
+                    </span>
+                  </template>
+                </n-auto-complete>
+                <span class="field-hint">{{ text.imageHint }}</span>
+              </div>
             </n-form-item>
           </div>
           <n-form-item :label="text.command" path="command">
@@ -258,9 +293,10 @@ async function submit() {
 </template>
 
 <style scoped>
-.create-container-modal { width: 760px; }
-.create-container-modal :deep(.n-card__content) { max-height: 62vh; overflow-y: auto; }
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-grid { display: grid; align-items: start; grid-template-columns: 1fr 1fr; gap: 16px; }
+.field-hint { display: block; width: 100%; margin-top: 6px; color: var(--sw-muted); font-size: 10px; line-height: 1.6; }
+.image-field { width: 100%; }
+.auto-empty { color: var(--sw-muted); font-size: 11px; }
 .code-input :deep(textarea) { font-family: Consolas, monospace; font-size: 12px; }
 .config-section + .config-section { margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--sw-border); }
 .section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; color: var(--sw-text); font-size: 13px; font-weight: 600; }

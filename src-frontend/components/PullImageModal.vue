@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { NButton, NForm, NFormItem, NInput, NModal, NSelect, createDiscreteApi } from "naive-ui";
+import { NButton, NForm, NFormItem, NInput, NModal, NSelect } from "naive-ui";
+import { message } from "../utils/message";
 import { dict } from "../dict";
 import { useImageStore } from "../store/image";
 
@@ -14,7 +15,6 @@ const emit = defineEmits<{
   pulled: [];
 }>();
 const images = useImageStore();
-const { message } = createDiscreteApi(["message"]);
 const reference = ref("");
 const registryId = ref<string | null>(null);
 const submitting = ref(false);
@@ -54,7 +54,7 @@ async function submit() {
     :show="show"
     preset="card"
     :title="dict.image.pullModal.title"
-    class="pull-image-modal"
+    class="form-modal pull-image-modal"
     :mask-closable="!submitting"
     :closable="!submitting"
     @update:show="emit('update:show', $event)"

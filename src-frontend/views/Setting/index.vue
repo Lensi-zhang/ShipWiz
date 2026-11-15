@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
-import { NButton, NIcon, NInputNumber, NSelect, NSwitch, NTabPane, NTabs, NTag, createDiscreteApi } from "naive-ui";
+import { NButton, NIcon, NInputNumber, NSelect, NSwitch, NTabPane, NTabs, NTag } from "naive-ui";
+import { connectSuccess } from "../../utils/message";
 import { Anchor, Check, Info, Moon, RefreshCw, ScrollText, Settings2, Sun } from "lucide-vue-next";
 import RegistryManager from "../../components/RegistryManager.vue";
 import { useAppearanceStore } from "../../store/appearance";
@@ -11,7 +12,6 @@ import { useImageStore } from "../../store/image";
 const fleet = useFleetStore();
 const appearance = useAppearanceStore();
 const images = useImageStore();
-const { message } = createDiscreteApi(["message"]);
 const activeTab = ref("engine");
 const version = ref("—");
 const testing = ref(false);
@@ -29,7 +29,7 @@ async function testEngine() {
   const ok = await fleet.test(fleet.state.currentNodeId);
   testing.value = false;
   engineMessage.value = ok ? "连接检测通过，引擎响应正常。" : "连接检测未通过，请前往舰队总览检查通道配置。";
-  if (ok) message.success("动力引擎连接正常");
+  if (ok) connectSuccess("动力引擎连接正常");
 }
 async function switchNode(id: string) {
   engineMessage.value = "";
@@ -96,5 +96,12 @@ async function switchNode(id: string) {
 .theme-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }.theme-options > button { position: relative; padding: 12px; color: var(--sw-text); border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface-soft); text-align: left; cursor: pointer; }.theme-options > button.active { border-color: var(--sw-primary); box-shadow: inset 0 0 0 1px var(--sw-primary); }.theme-options > button > span:nth-child(2) { display: grid; grid-template-columns: 20px 1fr; align-items: center; gap: 3px; margin-top: 12px; font-size: 12px; }.theme-options small { grid-column: 2; margin-top: 3px; color: var(--sw-muted); font-size: 9px; }.theme-preview { display: grid; grid-template: 20px 1fr / 28px 1fr; height: 94px; overflow: hidden; border: 1px solid var(--sw-border); border-radius: 6px; }.theme-preview i { grid-column: 1 / -1; }.theme-preview b { grid-row: 2; }.theme-preview em { grid-row: 2; margin: 9px; border-radius: 3px; }.theme-preview.deep { background: #0f172a; }.theme-preview.deep i { background: #1e293b; }.theme-preview.deep b { background: #1e293b; }.theme-preview.deep em { background: #243248; }.theme-preview.shallow { background: #f7fafc; }.theme-preview.shallow i { background: #fff; }.theme-preview.shallow b { background: #edf2f7; }.theme-preview.shallow em { background: #fff; }.selected-dot { position: absolute; right: 10px; bottom: 15px; width: 7px; height: 7px; border-radius: 50%; background: var(--sw-primary); }
 .privacy-note { display: flex; gap: 9px; margin-top: 20px; padding: 12px; color: var(--sw-primary); border-radius: 8px; background: var(--sw-primary-soft); }.privacy-note p { margin: 0; color: var(--sw-text-secondary); font-size: 11px; }
 .about-brand { display: flex; align-items: center; gap: 14px; color: var(--sw-primary); }.about-brand h2 { margin: 0; color: var(--sw-text); font-family: "Bahnschrift", sans-serif; font-size: 26px; }.about-brand span { color: var(--sw-muted); font-size: 11px; }.about-section > p { max-width: 600px; margin: 24px 0; color: var(--sw-text-secondary); font-size: 12px; line-height: 1.8; }.about-section dl { max-width: 560px; margin: 0; }.about-section dl > div { display: flex; justify-content: space-between; padding: 13px 0; border-top: 1px solid var(--sw-border); font-size: 11px; }.about-section dt { color: var(--sw-muted); }.about-section dd { margin: 0; color: var(--sw-text); }
-@media (max-width: 900px) { .settings-layout { grid-template-columns: 140px minmax(0, 1fr); }.theme-options { grid-template-columns: 1fr; }.engine-select { width: 190px; } }
+@media (max-width: 900px) {
+  .settings-layout { grid-template-columns: 140px minmax(0, 1fr); }
+  .theme-options { grid-template-columns: 1fr; }
+  .setting-row { align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+  .setting-row > div { min-width: min(100%, 260px); }
+  .engine-select { width: min(240px, 100%); }
+  .section-actions { flex-wrap: wrap; }
+}
 </style>

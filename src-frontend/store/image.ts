@@ -1,11 +1,10 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
-import { createDiscreteApi } from "naive-ui";
+import { departSuccess, hoistSuccess, steerSuccess } from "../utils/message";
 import { imageApi } from "../api/image";
 import { dict } from "../dict";
 import type { ImageInfo, ImageSearchResult, RegistryInput, RegistrySource } from "../types";
 
-const { message } = createDiscreteApi(["message"]);
 
 export const useImageStore = defineStore("image", () => {
   const items = ref<ImageInfo[]>([]);
@@ -55,7 +54,7 @@ export const useImageStore = defineStore("image", () => {
     actionKey.value = `pull:${reference}`;
     try {
       await imageApi.pull(nodeId, reference, registryId);
-      message.success(dict.image.messages.pulled);
+      hoistSuccess(dict.image.messages.pulled);
       await load(nodeId);
       return true;
     } catch {
@@ -69,7 +68,7 @@ export const useImageStore = defineStore("image", () => {
     actionKey.value = `remove:${image.id}`;
     try {
       await imageApi.remove(nodeId, image.id);
-      message.success(dict.image.messages.removed);
+      departSuccess(dict.image.messages.removed);
       await load(nodeId);
       return true;
     } catch {
@@ -83,7 +82,7 @@ export const useImageStore = defineStore("image", () => {
     actionKey.value = "import";
     try {
       await imageApi.importImage(nodeId, source);
-      message.success(dict.image.messages.imported);
+      hoistSuccess(dict.image.messages.imported);
       await load(nodeId);
       return true;
     } catch {
@@ -97,7 +96,7 @@ export const useImageStore = defineStore("image", () => {
     actionKey.value = `export:${reference}`;
     try {
       await imageApi.exportImage(nodeId, reference, destination);
-      message.success(dict.image.messages.exported);
+      departSuccess(dict.image.messages.exported);
       return true;
     } catch {
       return false;
@@ -124,7 +123,7 @@ export const useImageStore = defineStore("image", () => {
     actionKey.value = "registry";
     try {
       registries.value = await imageApi.saveRegistry(input, id);
-      message.success(id ? dict.image.messages.registryUpdated : dict.image.messages.registryCreated);
+      steerSuccess(id ? dict.image.messages.registryUpdated : dict.image.messages.registryCreated);
       return true;
     } catch {
       return false;
@@ -137,7 +136,7 @@ export const useImageStore = defineStore("image", () => {
     actionKey.value = `registry:${id}`;
     try {
       registries.value = await imageApi.removeRegistry(id);
-      message.success(dict.image.messages.registryRemoved);
+      departSuccess(dict.image.messages.registryRemoved);
       return true;
     } catch {
       return false;
@@ -149,7 +148,7 @@ export const useImageStore = defineStore("image", () => {
   async function setDefaultRegistry(id: string) {
     try {
       registries.value = await imageApi.setDefaultRegistry(id);
-      message.success(dict.image.messages.registryDefaulted);
+      steerSuccess(dict.image.messages.registryDefaulted);
       return true;
     } catch {
       return false;

@@ -12,15 +12,14 @@ import {
   NPopconfirm,
   NSpin,
   NTag,
-  createDiscreteApi,
 } from "naive-ui";
+import { message } from "../utils/message";
 import { Anchor, Check, Pencil, Plus, Trash2 } from "lucide-vue-next";
 import { dict } from "../dict";
 import { useImageStore } from "../store/image";
 import type { RegistrySource } from "../types";
 
 const images = useImageStore();
-const { message } = createDiscreteApi(["message"]);
 const modalVisible = ref(false);
 const saving = ref(false);
 const form = reactive({ id: null as string | null, name: "", url: "", isDefault: false });
@@ -127,7 +126,7 @@ async function save() {
       v-model:show="modalVisible"
       preset="card"
       :title="form.id ? dict.image.registry.edit : dict.image.registry.add"
-      class="registry-modal"
+      class="form-modal registry-modal"
     >
       <n-form label-placement="top" @submit.prevent="save">
         <n-form-item :label="dict.image.registry.name" required>

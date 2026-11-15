@@ -91,7 +91,8 @@ const privateKeySourceChanged = computed(() =>
 
 function resetForm(node: ShipNode | null) {
   resetting = true;
-  const connection: NodeConnection = node?.connection ?? (node?.type === "local" ? "local" : "tls");
+  saving.value = false;
+  const connection: NodeConnection = node?.connection ?? (node?.type === "remote" ? "tls" : "local");
   initialPrivateKeySource = node?.privateKeyPath ? "path" : "content";
   privateKeySource.value = initialPrivateKeySource;
   Object.assign(form, defaults(), {
@@ -212,7 +213,7 @@ function validate() {
 }
 
 async function submit() {
-  if (!validate()) return;
+  if (saving.value || !validate()) return;
   saving.value = true;
   const input: NodeInput = {
     name: form.name.trim(),
@@ -237,11 +238,14 @@ async function submit() {
       input.passphrase = form.passphrase || null;
     }
   }
-  const succeeded = await fleet.save(input, props.node?.id);
-  saving.value = false;
-  if (!succeeded) return;
-  emit("saved", props.node ? "edit" : "create");
-  visible.value = false;
+  try {
+    const succeeded = await fleet.save(input, props.node?.id);
+    if (!succeeded) return;
+    emit("saved", props.node ? "edit" : "create");
+    visible.value = false;
+  } finally {
+    saving.value = false;
+  }
 }
 </script>
 
@@ -249,10 +253,9 @@ async function submit() {
   <n-modal
     v-model:show="visible"
     preset="card"
-    class="node-modal"
+    class="form-modal form-modal--wide node-modal"
     :title="node ? dict.fleet.editTitle : dict.fleet.createTitle"
     :bordered="false"
-    :style="{ width: 'min(480px, calc(100vw - 32px))' }"
     :closable="!saving"
     :mask-closable="!saving"
   >
@@ -372,7 +375,6 @@ async function submit() {
 .clear-credential { margin: -4px 0 7px; color: var(--sw-text-secondary); }
 .credential-hint { margin: 0 0 18px; color: var(--sw-muted); font-size: 11px; line-height: 1.6; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
-.node-modal :deep(.n-card-content) { max-height: calc(100vh - 250px); overflow-y: auto; }
 .node-modal :deep(.n-form-item) { flex-shrink: 0; }
 @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; gap: 0; } .remote-grid { grid-template-columns: 1fr; } }
 </style>

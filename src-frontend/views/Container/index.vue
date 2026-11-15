@@ -139,15 +139,17 @@ async function refresh() {
 <template>
   <section class="container-page page page-enter">
     <header class="page-header">
-      <div>
+      <div class="page-heading">
         <span class="eyebrow">{{ dict.container.eyebrow }}</span>
         <h1>{{ dict.container.title }}</h1>
         <p>{{ dict.container.description }}</p>
       </div>
-      <n-button type="primary" size="large" :disabled="!currentNode" @click="createVisible = true">
-        <template #icon><n-icon><Plus /></n-icon></template>
-        {{ dict.container.create }}
-      </n-button>
+      <div class="header-actions">
+        <n-button type="primary" size="large" :disabled="!currentNode" @click="createVisible = true">
+          <template #icon><n-icon><Plus /></n-icon></template>
+          {{ dict.container.create }}
+        </n-button>
+      </div>
     </header>
 
     <div class="current-ship-strip">
@@ -165,7 +167,7 @@ async function refresh() {
       </n-button>
     </div>
 
-    <div class="container-stats">
+    <div class="container-stats stats-grid stats-grid--four">
       <div class="metric-card">
         <span class="metric-icon teal"><Box :size="18" /></span>
         <div><span>{{ dict.container.total }}</span><strong>{{ containers.items.length.toString().padStart(2, "0") }}</strong></div>
@@ -365,8 +367,7 @@ async function refresh() {
 .connection-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--sw-muted); }
 .connection-state.online { color: var(--sw-success); }
 .connection-state.online i { background: var(--sw-success); box-shadow: 0 0 0 4px var(--sw-success-soft); }
-.container-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; margin-bottom: 18px; }
-.metric-card { display: flex; align-items: center; gap: 14px; min-height: 84px; padding: 16px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); }
+.metric-card { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); }
 .metric-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; }
 .metric-icon.teal { background: var(--sw-primary-soft); color: var(--sw-primary); }
 .metric-icon.green { background: var(--sw-success-soft); color: var(--sw-success); }
@@ -377,7 +378,6 @@ async function refresh() {
 .metric-card strong { margin-top: 4px; color: var(--sw-text); font-family: "DIN Alternate", Consolas, sans-serif; font-size: 24px; font-weight: 500; line-height: 1; }
 .metric-card strong.memory-value { font-size: 19px; }
 .container-panel { overflow: hidden; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface); box-shadow: var(--sw-shadow); }
-.list-toolbar { display: flex; align-items: center; gap: 10px; min-height: 67px; padding: 12px 16px; border-bottom: 1px solid var(--sw-border); }
 .list-title { display: flex; align-items: center; gap: 9px; margin-right: auto; color: var(--sw-primary); }
 .list-title h2 { margin: 0; color: var(--sw-text); font-size: 14px; font-weight: 500; }
 .search-input { width: 245px; }
@@ -412,7 +412,6 @@ async function refresh() {
 .remove-hint { max-width: 240px; margin-top: 6px; line-height: 1.6; }
 .container-empty { min-height: 330px; justify-content: center; }
 @media (max-width: 1100px) {
-  .container-stats { grid-template-columns: repeat(2, 1fr); }
   .current-ship-strip > code { display: none; }
   .search-input { width: 200px; }
 }
