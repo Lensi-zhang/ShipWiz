@@ -5,12 +5,12 @@
 ## 功能
 
 - **舰队（节点）**：本机 / TLS / SSH 三种接入方式，连接检测与在线状态
-- **集装箱（容器）**：卡片/表格视图、创建、启停、重启、删除、日志查看、容器内交互终端
-- **图纸（镜像）**：搜索、拉取、删除、导出与导入
+- **集装箱（容器）**：卡片/表格视图、创建（图纸输入支持本舰图纸库预判）、启停、重启、删除、日志查看、容器内交互终端
+- **图纸（镜像）**：市场式浏览（热门关键词、官方/社区筛选、按收藏排序）、采购详情、拉取、删除、导出与导入
 - **编队（Compose）**：YAML 编辑与校验、up/down、日志、模板
 - **监控**：容器与引擎资源总览
 - **补给港**：镜像仓库（Registry）管理与默认仓库设置
-- **界面**：深海/浅海主题、200px/56px 折叠侧栏、加载/空态/错误态三态反馈
+- **界面**：深海/浅海主题、200px/56px 折叠侧栏、加载/空态/错误态三态反馈、航海主题操作通知动画
 
 ## 技术栈
 
@@ -40,6 +40,7 @@ package.json        前端依赖与脚本
 - Node.js 18+ 与 npm
 - Rust 1.77.2+（含 MSVC 工具链）
 - Docker Engine / Docker Desktop（本机连接时需要）
+- Compose 编队功能需要 `docker compose` 插件；应用会依次从 `SHIPWIZ_DOCKER_PATH`、`PATH` 以及 Docker Desktop / Rancher Desktop / Podman 的默认安装目录查找 CLI，并兼容独立的 `docker-compose`，无需手动配置环境变量
 - Windows 构建额外需要 Strawberry Perl 与 NASM：`ssh2` 的 vendored OpenSSL 依赖它们
 - Linux 构建桌面端需要 `libwebkit2gtk-4.1-dev`、`libayatana-appindicator3-dev`、`librsvg2-dev`、`patchelf`、`libssl-dev`；只构建 CLI 则无需这些图形库，但仍需 `pkg-config`、`libdbus-1-dev`（密钥串后端）与 `libssl-dev`
 
