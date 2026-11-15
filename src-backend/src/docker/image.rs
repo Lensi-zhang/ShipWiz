@@ -3,9 +3,10 @@ use bollard::query_parameters::{
     SearchImagesOptions,
 };
 use futures_util::StreamExt;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::path::Path;
+use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
@@ -39,6 +40,31 @@ pub struct ImageSearchResult {
     pub description: String,
     pub star_count: i64,
     pub is_official: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct DockerHubSearchResponse {
+    #[serde(default)]
+    results: Vec<DockerHubSearchResult>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DockerHubSearchResult {
+    repo_name: String,
+    short_description: Option<String>,
+    star_count: Option<i64>,
+    is_official: Option<bool>,
+}
+
+impl From<DockerHubSearchResult> for ImageSearchResult {
+    fn from(result: DockerHubSearchResult) -> Self {
+        Self {
+            name: result.repo_name,
+            description: result.short_description.unwrap_or_default(),
+            star_count: result.star_count.unwrap_or(0),
+            is_official: result.is_official.unwrap_or(false),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -251,7 +277,7 @@ pub(crate) async fn search_for_node(
     term: &str,
 ) -> Result<Vec<ImageSearchResult>, AppError> {
     let term = required(term, "请输入需要检索的图纸名称。")?;
-    let results = connect(node)
+    match connect(node)
         .await?
         .search_images(SearchImagesOptions {
             term: term.to_string(),
@@ -259,16 +285,36 @@ pub(crate) async fn search_for_node(
             filters: None,
         })
         .await
-        .map_err(AppError::docker)?;
-    Ok(results
-        .into_iter()
-        .map(|result| ImageSearchResult {
-            name: result.name.unwrap_or_default(),
-            description: result.description.unwrap_or_default(),
-            star_count: result.star_count.unwrap_or(0),
-            is_official: result.is_official.unwrap_or(false),
-        })
-        .collect())
+    {
+        Ok(results) => Ok(results
+            .into_iter()
+            .map(|result| ImageSearchResult {
+                name: result.name.unwrap_or_default(),
+                description: result.description.unwrap_or_default(),
+                star_count: result.star_count.unwrap_or(0),
+                is_official: result.is_official.unwrap_or(false),
+            })
+            .collect()),
+        Err(_) => search_docker_hub(term).await,
+    }
+}
+
+async fn search_docker_hub(term: &str) -> Result<Vec<ImageSearchResult>, AppError> {
+    let response = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|error| AppError::docker(format!("无法初始化 Docker Hub 检索通道：{error}")))?
+        .get("https://hub.docker.com/v2/search/repositories/")
+        .query(&[("query", term), ("page_size", "25")])
+        .send()
+        .await
+        .map_err(|error| AppError::docker(format!("Docker Hub 直连检索失败：{error}")))?
+        .error_for_status()
+        .map_err(|error| AppError::docker(format!("Docker Hub 拒绝了检索请求：{error}")))?
+        .json::<DockerHubSearchResponse>()
+        .await
+        .map_err(|error| AppError::docker(format!("Docker Hub 检索结果无法解析：{error}")))?;
+    Ok(response.results.into_iter().map(Into::into).collect())
 }
 
 #[cfg(feature = "desktop")]
@@ -448,4 +494,43 @@ pub async fn import_image(node_id: String, source: String) -> ApiResponse<ImageO
         }
         .await,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn docker_hub_search_results_include_optional_fields() {
+        let response: DockerHubSearchResponse = serde_json::from_str(
+            r#"{
+                "results": [
+                    {
+                        "repo_name": "alpine",
+                        "short_description": "A minimal Docker image",
+                        "star_count": 42,
+                        "is_official": true
+                    },
+                    {
+                        "repo_name": "example/test",
+                        "short_description": null,
+                        "star_count": null,
+                        "is_official": null
+                    }
+                ]
+            }"#,
+        )
+        .expect("Docker Hub 响应应能解析");
+
+        let results: Vec<ImageSearchResult> =
+            response.results.into_iter().map(Into::into).collect();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].name, "alpine");
+        assert_eq!(results[0].description, "A minimal Docker image");
+        assert_eq!(results[0].star_count, 42);
+        assert!(results[0].is_official);
+        assert_eq!(results[1].description, "");
+        assert_eq!(results[1].star_count, 0);
+        assert!(!results[1].is_official);
+    }
 }

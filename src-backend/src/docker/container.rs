@@ -216,6 +216,11 @@ fn map_container(summary: ContainerSummary) -> ContainerInfo {
         })
         .collect::<Vec<_>>();
     ports.sort_by_key(|port| (port.private_port, port.public_port.unwrap_or(0)));
+    ports.dedup_by(|left, right| {
+        left.private_port == right.private_port
+            && left.public_port == right.public_port
+            && left.protocol == right.protocol
+    });
 
     ContainerInfo {
         id,

@@ -60,11 +60,11 @@ cargo check
 cargo test --lib
 ```
 
-仅构建命令行版本（不编译 Tauri，Linux 服务器无需安装 WebKit/GTK）：
+仅构建终端界面版本（不编译 Tauri，Linux 服务器无需安装 WebKit/GTK）：
 
 ```bash
 cargo build --release --no-default-features --bin shipwiz-cli
-./target/release/shipwiz-cli --help
+./target/release/shipwiz-cli
 ```
 
 ## Linux 安装
@@ -77,33 +77,28 @@ chmod +x ShipWiz_0.1.0_amd64.AppImage   # 其他发行版
 ./ShipWiz_0.1.0_amd64.AppImage
 ```
 
-CLI 可直接下载独立二进制，或用 npm 安装：
+CLI 可直接下载独立二进制，或用 npm 安装，启动后直接进入全屏终端界面：
 
 ```bash
 npm install -g shipwiz-cli
-shipwiz-cli info
+shipwiz-cli
 ```
 
-## 命令行（shipwiz-cli）
+## 终端界面（shipwiz-cli）
 
-CLI 与桌面端共用 `~/.shipwiz/config.json`、`known_hosts.json` 与系统密钥串，可在服务器上无界面运行。
+`shipwiz-cli` 是一个 k9s / lazydocker 风格的交互式 TUI，与桌面端共用 `~/.shipwiz/config.json`、`known_hosts.json` 与系统密钥串，可在服务器上无界面运行。
 
-```bash
-shipwiz-cli node list                     # 列出节点（* 为当前节点）
-shipwiz-cli node add --name prod --type remote --connection ssh \
-  --host 10.0.0.8 --username root --auth key --private-key-path ~/.ssh/id_ed25519
-shipwiz-cli node use prod                 # 切换当前节点
-shipwiz-cli node test                     # 连通性检查
-shipwiz-cli ps                            # 集装箱列表（含 CPU/内存）
-shipwiz-cli logs web -f                   # 跟踪日志
-shipwiz-cli exec web -- ls -al /app       # 容器内执行命令
-shipwiz-cli image list / pull nginx:alpine / rmi <image>
-shipwiz-cli compose list / ps / up <编队> / down <编队> / logs <编队>
-shipwiz-cli registry list / add --name mirror --url https://registry.example.com
-shipwiz-cli monitor --watch               # 多节点概览
-```
+启动后默认进入集装箱页，顶部标签用 `1`–`6` 或 `Tab` 切换，`F5` 全局刷新，`?` 查看完整按键手册，`q` 退出。
 
-所有读取类命令都支持 `--json`，全局 `-n/--node` 可临时指定节点。
+| 标签 | 常用按键 |
+| --- | --- |
+| 集装箱 | `s` 启航 · `x` 停泊 · `r` 重启 · `d` 撤收 · `l` 日志 · `e` 执行命令 · `c` 新建 · `Enter` 详情 |
+| 图纸 | `p` 采购 · `s` 检索（结果中 `Enter` 直接采购）· `x` 导出 · `i` 导入 · `d` 移除 |
+| 编队 | `u` 启动 · `Shift+D` 停止 · `l` 日志 · `a` 从 YAML 文件添加 · `d` 移除 |
+| 节点 | `Enter` 切换当前节点 · `t` 测试连接 · `a` 新增 · `e` 编辑 · `d` 移除 |
+| 补给港 | `a` 新增 · `u` 设为默认 · `d` 移除 |
+
+弹窗内 `Tab`/`↑`/`↓` 切换表单字段，`Enter` 提交，`Esc` 取消；确认框用 `y` / `n` 应答。
 
 无头服务器无法访问系统密钥串时，可用环境变量提供 SSH 凭据：
 

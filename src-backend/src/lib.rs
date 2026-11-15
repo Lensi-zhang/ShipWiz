@@ -1,4 +1,3 @@
-pub mod cli;
 mod compose;
 pub mod config;
 pub(crate) mod credential;
@@ -9,6 +8,7 @@ mod ssh;
 pub mod template;
 #[cfg(feature = "desktop")]
 mod terminal;
+pub mod tui;
 mod utils;
 
 #[cfg(feature = "desktop")]
