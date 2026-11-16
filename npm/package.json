@@ -1,6 +1,6 @@
 {
   "name": "shipwiz-cli",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "ShipWiz 命令行 Docker 舰队管理器（Linux / Windows / macOS）",
   "license": "MIT",
   "type": "commonjs",
