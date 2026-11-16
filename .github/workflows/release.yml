@@ -242,10 +242,18 @@ jobs:
       - name: Download draft release and updater manifest
         run: |
           mkdir -p updater/original updater/normalized updater/verified
-          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" > updater/release.json
+          mapfile -t release_ids < <(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"${RELEASE_TAG}\") | .id"
+          )
+          if [ "${#release_ids[@]}" -ne 1 ] || [[ ! "${release_ids[0]}" =~ ^[0-9]+$ ]]; then
+            printf 'Expected exactly one release for %s; found %s\n' "${RELEASE_TAG}" "${#release_ids[@]}" >&2
+            exit 1
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/releases/${release_ids[0]}" > updater/release.json
           gh release download "${RELEASE_TAG}" --pattern latest.json --dir updater/original
       - name: Normalize updater asset URLs
-        run: node scripts/normalize-updater.mjs updater/original/latest.json updater/release.json updater/normalized/latest.json "${RELEASE_TAG#v}"
+        run: node scripts/normalize-updater.mjs updater/original/latest.json updater/release.json updater/normalized/latest.json "${RELEASE_TAG#v}" "${RELEASE_TAG}"
       - name: Upload normalized updater manifest
         run: gh release upload "${RELEASE_TAG}" updater/normalized/latest.json --clobber
       - name: Verify uploaded updater manifest

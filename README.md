@@ -87,9 +87,9 @@ cargo build --release --no-default-features --bin shipwiz-cli
 桌面端在 Linux 上提供 `.deb` 与 `.AppImage`，由 GitHub Actions 在打 tag 时自动构建：
 
 ```bash
-sudo dpkg -i shipwiz_0.2.6_amd64.deb   # Debian / Ubuntu
-chmod +x ShipWiz_0.2.6_amd64.AppImage   # 其他发行版
-./ShipWiz_0.2.6_amd64.AppImage
+sudo dpkg -i shipwiz_0.2.7_amd64.deb   # Debian / Ubuntu
+chmod +x ShipWiz_0.2.7_amd64.AppImage   # 其他发行版
+./ShipWiz_0.2.7_amd64.AppImage
 ```
 
 CLI 可直接下载独立二进制，或用 npm 安装，启动后直接进入全屏终端界面：
@@ -152,11 +152,11 @@ export SHIPWIZ_SSH_PASSPHRASE='...'        # 私钥口令（可选）
 发布前统一提升并校验六处版本号（`Cargo.toml`、`Cargo.lock`、`package.json`、`package-lock.json`、`npm/package.json`、`tauri.conf.json`）：
 
 ```bash
-npm run bump -- 0.2.6
+npm run bump -- 0.2.7
 npm run check:version
 ```
 
-推送与清单版本一致的 `v*` tag 会触发 `.github/workflows/release.yml`：构建 Linux deb/AppImage、Windows MSI/NSIS、macOS app/DMG 及对应签名更新产物，同时构建 Linux、Windows、macOS 的 `shipwiz-cli` 二进制并上传到草稿 Release。全部构建成功后，最终任务会校验 10 个桌面平台，将 Tauri Action 上传的 `latest.json` 安装包地址规范化为公开 `browser_download_url`，回读比对并确认签名未变后才公开为 latest，避免匿名更新下载经过 `api.github.com` 触发限流。构建或校验失败时不会公开中间清单。
+推送与清单版本一致的 `v*` tag 会触发 `.github/workflows/release.yml`：构建 Linux deb/AppImage、Windows MSI/NSIS、macOS app/DMG 及对应签名更新产物，同时构建 Linux、Windows、macOS 的 `shipwiz-cli` 二进制并上传到草稿 Release。全部构建成功后，最终任务会按 tag 定位唯一草稿 Release，校验 10 个桌面平台，将 Tauri Action 上传的 `latest.json` 安装包地址（包括草稿的 `untagged-*` 地址）规范化为当前 tag 的公开下载地址，回读比对并确认签名未变后才公开为 latest，避免匿名更新下载经过 `api.github.com` 触发限流。构建或校验失败时不会公开中间清单。
 
 仓库维护者需要先在 GitHub Actions Secrets 中配置：
 

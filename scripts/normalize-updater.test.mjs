@@ -58,13 +58,18 @@ test("normalizes mixed URLs idempotently without changing other fields", () => {
       platformAssets[platform].browser_download_url;
   }
 
-  const normalized = normalizeUpdaterManifest(manifest, assets, "0.2.6");
+  const normalized = normalizeUpdaterManifest(
+    manifest,
+    assets,
+    "0.2.6",
+    "v0.2.6",
+  );
 
   assert.deepEqual(normalized, expected);
   assert.deepEqual(manifest, original);
   assert.notEqual(normalized, manifest);
   assert.deepEqual(
-    normalizeUpdaterManifest(normalized, assets, "0.2.6"),
+    normalizeUpdaterManifest(normalized, assets, "0.2.6", "v0.2.6"),
     expected,
   );
   for (const platform of expectedPlatforms) {
@@ -80,12 +85,47 @@ test("normalizes mixed URLs idempotently without changing other fields", () => {
   }
 });
 
+test("rewrites draft untagged URLs to canonical release URLs", () => {
+  const { assets, manifest, platformAssets } = fixtures();
+  for (const asset of assets) {
+    asset.browser_download_url = asset.browser_download_url.replace(
+      "/download/v0.2.6/",
+      "/download/untagged-1b6932f773c14225e3e7/",
+    );
+  }
+  for (const platform of expectedPlatforms) {
+    manifest.platforms[platform].url =
+      platformAssets[platform].browser_download_url;
+  }
+
+  const normalized = normalizeUpdaterManifest(
+    manifest,
+    assets,
+    "0.2.6",
+    "v0.2.6",
+  );
+
+  for (const platform of expectedPlatforms) {
+    const name = platformAssets[platform].browser_download_url
+      .split("/")
+      .at(-1);
+    assert.equal(
+      normalized.platforms[platform].url,
+      `https://github.com/Lensi-zhang/ShipWiz/releases/download/v0.2.6/${name}`,
+    );
+  }
+  assert.deepEqual(
+    normalizeUpdaterManifest(normalized, assets, "0.2.6", "v0.2.6"),
+    normalized,
+  );
+});
+
 test("rejects an unknown asset URL", () => {
   const { assets, manifest } = fixtures();
   manifest.platforms["windows-x86_64"].url =
     "https://api.github.com/repos/Lensi-zhang/ShipWiz/releases/assets/9999";
   assert.throws(
-    () => normalizeUpdaterManifest(manifest, assets, "0.2.6"),
+    () => normalizeUpdaterManifest(manifest, assets, "0.2.6", "v0.2.6"),
     /Unknown updater asset for windows-x86_64/,
   );
 });
@@ -94,7 +134,13 @@ test("rejects missing and unexpected platforms", () => {
   const missing = fixtures();
   delete missing.manifest.platforms["darwin-aarch64-app"];
   assert.throws(
-    () => normalizeUpdaterManifest(missing.manifest, missing.assets, "0.2.6"),
+    () =>
+      normalizeUpdaterManifest(
+        missing.manifest,
+        missing.assets,
+        "0.2.6",
+        "v0.2.6",
+      ),
     /missing: darwin-aarch64-app/,
   );
 
@@ -104,7 +150,8 @@ test("rejects missing and unexpected platforms", () => {
     url: extra.assets[2].url,
   };
   assert.throws(
-    () => normalizeUpdaterManifest(extra.manifest, extra.assets, "0.2.6"),
+    () =>
+      normalizeUpdaterManifest(extra.manifest, extra.assets, "0.2.6", "v0.2.6"),
     /unexpected: linux-aarch64/,
   );
 });
@@ -117,7 +164,7 @@ test("rejects duplicate asset mappings", () => {
       "https://github.com/Lensi-zhang/ShipWiz/releases/download/v0.2.6/other.tar.gz",
   });
   assert.throws(
-    () => normalizeUpdaterManifest(manifest, assets, "0.2.6"),
+    () => normalizeUpdaterManifest(manifest, assets, "0.2.6", "v0.2.6"),
     /Duplicate asset mapping/,
   );
 });
@@ -125,7 +172,7 @@ test("rejects duplicate asset mappings", () => {
 test("rejects a version mismatch", () => {
   const { assets, manifest } = fixtures();
   assert.throws(
-    () => normalizeUpdaterManifest(manifest, assets, "0.2.7"),
+    () => normalizeUpdaterManifest(manifest, assets, "0.2.7", "v0.2.7"),
     /does not match/,
   );
 });
@@ -134,7 +181,7 @@ test("rejects an empty signature", () => {
   const { assets, manifest } = fixtures();
   manifest.platforms["linux-x86_64-deb"].signature = "  ";
   assert.throws(
-    () => normalizeUpdaterManifest(manifest, assets, "0.2.6"),
+    () => normalizeUpdaterManifest(manifest, assets, "0.2.6", "v0.2.6"),
     /linux-x86_64-deb signature must be a non-empty string/,
   );
 });

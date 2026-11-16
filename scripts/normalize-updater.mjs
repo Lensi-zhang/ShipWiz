@@ -18,7 +18,7 @@ export const expectedPlatforms = [
 ];
 
 const usage =
-  "Usage: node scripts/normalize-updater.mjs <manifest.json> <release.json> <output.json> <expected-version>";
+  "Usage: node scripts/normalize-updater.mjs <manifest.json> <release.json> <output.json> <expected-version> <release-tag>";
 
 function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -31,10 +31,41 @@ function requireNonEmptyString(value, description) {
   return value;
 }
 
+function canonicalReleaseUrl(publicUrl, releaseTag, description) {
+  let url;
+  try {
+    url = new URL(publicUrl);
+  } catch {
+    throw new Error(`${description} must be a valid URL`);
+  }
+
+  const segments = url.pathname.split("/");
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "github.com" ||
+    url.search ||
+    url.hash ||
+    segments.length !== 7 ||
+    segments[3] !== "releases" ||
+    segments[4] !== "download" ||
+    !segments[1] ||
+    !segments[2] ||
+    !segments[5] ||
+    !segments[6]
+  ) {
+    throw new Error(`${description} must be a GitHub release download URL`);
+  }
+
+  segments[5] = encodeURIComponent(releaseTag);
+  url.pathname = segments.join("/");
+  return url.toString();
+}
+
 export function normalizeUpdaterManifest(
   manifest,
   releaseAssets,
   expectedVersion,
+  releaseTag,
 ) {
   if (!isObject(manifest) || !isObject(manifest.platforms)) {
     throw new Error("Updater manifest must contain a platforms object");
@@ -43,6 +74,7 @@ export function normalizeUpdaterManifest(
     throw new Error("Release assets must be an array");
   }
   requireNonEmptyString(expectedVersion, "Expected version");
+  requireNonEmptyString(releaseTag, "Release tag");
   if (manifest.version !== expectedVersion) {
     throw new Error(
       `Updater version ${JSON.stringify(manifest.version)} does not match ${JSON.stringify(expectedVersion)}`,
@@ -73,11 +105,16 @@ export function normalizeUpdaterManifest(
       asset.url,
       `Release asset ${index} API URL`,
     );
-    const publicUrl = requireNonEmptyString(
+    const browserUrl = requireNonEmptyString(
       asset.browser_download_url,
       `Release asset ${index} public URL`,
     );
-    for (const url of [apiUrl, publicUrl]) {
+    const publicUrl = canonicalReleaseUrl(
+      browserUrl,
+      releaseTag,
+      `Release asset ${index} public URL`,
+    );
+    for (const url of [apiUrl, browserUrl, publicUrl]) {
       const existing = downloadUrls.get(url);
       if (existing !== undefined && existing !== publicUrl) {
         throw new Error(`Duplicate asset mapping for ${url}`);
@@ -111,13 +148,20 @@ export function normalizeUpdaterManifest(
 }
 
 async function main() {
-  const [manifestPath, releasePath, outputPath, expectedVersion, ...extra] =
-    process.argv.slice(2);
+  const [
+    manifestPath,
+    releasePath,
+    outputPath,
+    expectedVersion,
+    releaseTag,
+    ...extra
+  ] = process.argv.slice(2);
   if (
     !manifestPath ||
     !releasePath ||
     !outputPath ||
     !expectedVersion ||
+    !releaseTag ||
     extra.length
   ) {
     throw new Error(usage);
@@ -133,6 +177,7 @@ async function main() {
     manifest,
     release.assets,
     expectedVersion,
+    releaseTag,
   );
   await writeFile(
     outputPath,

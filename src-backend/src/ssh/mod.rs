@@ -559,10 +559,9 @@ impl LocalEndpoint {
 #[cfg(unix)]
 impl Drop for LocalEndpoint {
     fn drop(&mut self) {
-        if let Self::Unix { socket, directory } = self {
-            let _ = std::fs::remove_file(socket);
-            let _ = std::fs::remove_dir(directory);
-        }
+        let Self::Unix { socket, directory } = self;
+        let _ = std::fs::remove_file(socket);
+        let _ = std::fs::remove_dir(directory);
     }
 }
 
